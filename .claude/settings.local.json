@@ -43,7 +43,9 @@
       "Bash(npm search:*)",
       "Bash(npm info:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git tag:*)",
+      "Bash(git push:*)"
     ]
   }
 }

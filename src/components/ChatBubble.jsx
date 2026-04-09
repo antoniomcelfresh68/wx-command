@@ -66,11 +66,18 @@ export default function ChatBubble({ location }) {
     const systemPrompt = buildSystemPrompt(contextRef.current)
 
     try {
-      const res = await fetch('/api/chat', {
+      const apiUrl = import.meta.env.DEV
+        ? 'https://api.openai.com/v1/chat/completions'
+        : '/api/chat'
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(import.meta.env.DEV && {
+          'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
+        }),
+      }
+      const res = await fetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           model: 'gpt-4o',
           max_tokens: 500,

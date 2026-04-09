@@ -3,17 +3,42 @@ import { useDashboardContext } from '../hooks/useDashboardContext'
 
 // ── System prompt ─────────────────────────────────────────────────────────────
 function buildSystemPrompt(context) {
-  return `You are an experienced SPC meteorologist and storm chaser advisor embedded in a live severe weather dashboard. You have real-time access to the following dashboard data for ${context.location?.name ?? 'the selected location'}:
+  return `You are WX Assistant, an AI meteorologist embedded in Antonio's Severe Weather Dashboard v5.1.1 (wx-command.vercel.app). The dashboard is built with React + Vite, TanStack React Query (data fetching/caching), React Leaflet (maps), Recharts (charts), and Tailwind CSS. Deployed on Vercel with a serverless /api/chat proxy for OpenAI.
 
+DASHBOARD — 5 TABS AND HOW THEY WORK:
+• Overview: React Leaflet MapContainer with a CartoDB dark basemap TileLayer + IEM WMS WMSTileLayer for live NEXRAD N0R composite reflectivity radar. SPC Day 1 categorical GeoJSON polygons from spc.noaa.gov overlaid via Leaflet GeoJSON layer. Active warning polygons from NWS API. CAPE/CIN strip from Open-Meteo current params.
+• SPC (Severe): Full SPC outlook map Days 1–8. GeoJSON from spc.noaa.gov/products/outlook (categorical/tornado/wind/hail) rendered as Leaflet GeoJSON layers with color-coded fills. AFD modal fetches NWS api.weather.gov/products/types/AFD/{WFO} — WFO resolved via api.weather.gov/points/{lat},{lon}. Warning polygons also shown.
+• Observations: React Leaflet map with ASOS station network. Nearest station found via IEM Mesonet API (mesonet.agron.iastate.edu). Current hourly data from Open-Meteo. METAR obs from aviationweather.gov/api/data/metar.
+• Forecast: 7-day daily and hourly Recharts charts. Data from Open-Meteo (daily: temp max/min, precip prob, weathercode; hourly: temp, dewpoint, precip prob, wind). AFD panel hardcoded to NWS OUN (Norman, OK).
+• About: Attribution for all data sources.
+
+DATA SOURCES:
+• Open-Meteo — forecasts (daily/hourly temp, dewpoint, precip prob, wind, WMO weathercode), CAPE (J/kg), CIN (J/kg)
+• SPC GeoJSON (spc.noaa.gov) — categorical/tornado/wind/hail outlook polygons, Days 1–8; experimental Day 4–8 probabilistic
+• IEM WMS (mesonet.agron.iastate.edu) — live NEXRAD radar WMS tiles (nexrad-n0r-900913 layer), ASOS nearest-station lookup
+• NWS API (api.weather.gov) — active alerts (point + nationwide SVR/TOR), AFD text products, WFO grid lookup
+• aviationweather.gov — METAR observations (primary); IEM fallback for station lookup
+
+LIVE DATA IN YOUR CONTEXT FOR ${context.location?.name ?? 'this location'}:
 ${JSON.stringify(context, null, 2)}
 
-Key data available to you:
-- "spcOutlook.day1" — today's SPC categorical risk (category) plus point-specific tornado, wind, and hail probabilities
-- "spcOutlook.day2" and "spcOutlook.day3" — multi-day SPC categorical outlook risk levels for this location
-- "forecast7Day" — 7-day daily forecast with high/low temps, precipitation probability (pop), and conditions
-- "activeWarnings" — all active NWS warnings in effect for this location with event type, severity, headline, and expiration
+CONTEXT FIELD GUIDE:
+- currentConditions: METAR obs — temp/dewpoint (°F), humidity, wind (cardinal dir + kt), gusts, pressure (inHg), visibility (mi), sky condition
+- severeHighlights: spcDay1Category, cape (J/kg), cin (J/kg), activeSvrTorWarnings (nationwide count of active SVR+TOR warnings)
+- spcOutlook.day1: category (NO RISK/TSTM/MRGL/SLGT/ENH/MDT/HIGH), tornadoRisk%, windRisk%, hailRisk% — point-specific probabilities
+- spcOutlook.day2/day3: categorical risk for this location
+- forecast7Day: [{date, high°F, low°F, pop%, conditions}] × 7 days from Open-Meteo
+- activeWarnings: [{event, severity, headline, expires}] NWS active alerts at this point
+- timestamp: when this context snapshot was assembled
 
-Answer questions with the expertise of a senior NWS/SPC forecaster. Be direct and concise. Use correct meteorological terminology. Reference specific values from the dashboard data when relevant — including multi-day SPC outlooks and the 7-day forecast when answering questions about upcoming weather. You can also answer general meteorology questions beyond what's shown on the dashboard. When the situation is active or dangerous, be appropriately urgent.`
+METEOROLOGICAL EXPERTISE:
+Interpret CAPE (500–1000 marginal, 1000–2500 elevated, >2500 significant severe), CIN (<−50 J/kg = capped; −25 to −50 = inhibited but breakable), SPC risk tiers, tornado/wind/hail probability thresholds (≥10% significant), METAR obs, AFD synoptic reasoning, wind shear, storm mode (supercell vs. QLCS), and mesoscale environment. Know NWS warning criteria (SVR = 58 mph+ or 1" hail; TOR = confirmed or imminent rotation).
+
+BEHAVIOR:
+- Always cite specific values from the live context when answering weather questions — never give a generic answer when real data is present
+- When asked how something in the dashboard is built, explain the actual tech stack and data sources described above (e.g., "the radar uses a React Leaflet WMSTileLayer pointed at IEM's NEXRAD WMS endpoint")
+- Be direct, concise, and technically precise; be urgent when conditions are dangerous
+- Response budget is 500 tokens — prioritize signal over explanation`
 }
 
 function greetingPrompt(locationName) {
@@ -38,12 +63,21 @@ function TypingDots() {
   )
 }
 
+// ── Example prompts ───────────────────────────────────────────────────────────
+const EXAMPLE_PROMPTS = [
+  "What's the tornado risk near me today?",
+  'Explain today\'s SPC outlook',
+  'What does SLGT risk mean?',
+  'Is the atmosphere unstable right now?',
+]
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function ChatBubble({ location }) {
-  const [open, setOpen]       = useState(false)
+  const [open, setOpen]         = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [messages, setMessages] = useState([])   // { role, content }[]
-  const [input, setInput]     = useState('')
-  const [loading, setLoading] = useState(false)
+  const [input, setInput]       = useState('')
+  const [loading, setLoading]   = useState(false)
 
   // Full API-compatible history (includes hidden greeting user turn)
   const historyRef    = useRef([])
@@ -121,8 +155,8 @@ export default function ChatBubble({ location }) {
   }, [open, callAPI, location.label])
 
   // ── User send ──────────────────────────────────────────────────────────────
-  function handleSend() {
-    const text = input.trim()
+  function handleSend(overrideText) {
+    const text = (overrideText ?? input).trim()
     if (!text || loading) return
     setInput('')
     const userMsg = { role: 'user', content: text }
@@ -135,6 +169,14 @@ export default function ChatBubble({ location }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
 
+  function handleChipClick(text) {
+    handleSend(text)
+  }
+
+  // Chips show after greeting arrives, before user sends any message
+  const hasUserMessage = messages.some(m => m.role === 'user')
+  const showChips = !hasUserMessage && !loading && messages.length > 0
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
@@ -143,13 +185,48 @@ export default function ChatBubble({ location }) {
           0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
           30%            { opacity: 1;    transform: translateY(-4px); }
         }
+        .wx-panel {
+          transition: width 0.2s ease, height 0.2s ease;
+        }
+        .wx-chip {
+          background: #0f1120;
+          border: 1px solid #1e2235;
+          color: #8b92b3;
+          border-radius: 999px;
+          padding: 6px 13px;
+          font-size: 12px;
+          cursor: pointer;
+          transition: border-color 0.15s, color 0.15s, background 0.15s;
+          text-align: left;
+          font-family: inherit;
+          line-height: 1.4;
+        }
+        .wx-chip:hover {
+          border-color: rgba(59,130,246,0.45);
+          color: #93c5fd;
+          background: rgba(59,130,246,0.08);
+        }
+        .wx-icon-btn {
+          background: none;
+          border: none;
+          color: #8b92b3;
+          cursor: pointer;
+          padding: 3px 5px;
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: color 0.15s, background 0.15s;
+        }
+        .wx-icon-btn:hover { color: #c9cfe8; background: rgba(255,255,255,0.06); }
       `}</style>
 
       {/* ── Chat panel ── */}
       {open && (
-        <div style={{
+        <div className="wx-panel" style={{
           position: 'fixed', bottom: 88, right: 24,
-          width: 360, height: 500,
+          width: expanded ? 520 : 360,
+          height: expanded ? '70vh' : 500,
           background: '#0f1120', border: '1px solid #1e2235',
           borderRadius: 10, display: 'flex', flexDirection: 'column',
           zIndex: 9999, boxShadow: '0 8px 40px rgba(0,0,0,0.65)',
@@ -179,15 +256,39 @@ export default function ChatBubble({ location }) {
                 </span>
               </div>
             </div>
-            <button
-              onClick={() => setOpen(false)}
-              style={{
-                background: 'none', border: 'none', color: '#8b92b3',
-                cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '2px 6px',
-              }}
-            >
-              ✕
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              {/* Expand / collapse toggle */}
+              <button
+                className="wx-icon-btn"
+                onClick={() => setExpanded(v => !v)}
+                title={expanded ? 'Collapse' : 'Expand'}
+              >
+                {expanded ? (
+                  /* minimize-2 */
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                       strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                    <path d="M4 14h6v6"/><path d="M20 10h-6V4"/>
+                    <path d="M14 10 21 3"/><path d="M3 21l7-7"/>
+                  </svg>
+                ) : (
+                  /* maximize-2 */
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                       strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                    <path d="M15 3h6v6"/><path d="M9 21H3v-6"/>
+                    <path d="M21 3l-7 7"/><path d="M3 21l7-7"/>
+                  </svg>
+                )}
+              </button>
+              {/* Close */}
+              <button
+                className="wx-icon-btn"
+                onClick={() => setOpen(false)}
+                title="Close"
+                style={{ fontSize: 15, lineHeight: 1 }}
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           {/* Messages */}
@@ -219,6 +320,26 @@ export default function ChatBubble({ location }) {
                 </div>
               </div>
             ))}
+
+            {/* Example prompt chips — shown after greeting, before first user message */}
+            {showChips && (
+              <div style={{ padding: '4px 0 6px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 10, color: '#8b92b3', opacity: 0.5, letterSpacing: '0.07em', textTransform: 'uppercase', paddingLeft: 2 }}>
+                  Try asking
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  {EXAMPLE_PROMPTS.map(prompt => (
+                    <button
+                      key={prompt}
+                      className="wx-chip"
+                      onClick={() => handleChipClick(prompt)}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {loading && (
               <div style={{ display: 'flex', justifyContent: 'flex-start' }}>

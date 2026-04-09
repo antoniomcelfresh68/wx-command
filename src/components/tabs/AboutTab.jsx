@@ -35,7 +35,7 @@ const SOURCES = [
 
 const VERSIONS = [
   {
-    version: 'v5.1.0',
+    version: 'v5.1.1',
     label:   'Current build',
     notes:   'Live data throughout, SPC watch/warning polygons, AI assistant with multi-day SPC context, location search, 7-day forecast, Open-Meteo current conditions, SPC hover tooltips.',
   },
@@ -325,7 +325,7 @@ export default function AboutTab() {
           color: '#8b92b3', opacity: 0.4,
           fontFamily: 'monospace', letterSpacing: '0.05em',
         }}>
-          wx-command · v5.1.0 · All weather data is provided for informational purposes only.
+          wx-command · v5.1.1 · All weather data is provided for informational purposes only.
         </div>
 
       </div>

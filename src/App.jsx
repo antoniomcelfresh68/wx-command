@@ -16,7 +16,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden', background: '#090b14' }}>
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} location={location} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <TopBar location={location} setLocation={setLocation} />
           <MainContent activeTab={activeTab} location={location} />

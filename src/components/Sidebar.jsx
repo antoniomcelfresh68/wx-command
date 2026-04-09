@@ -1,5 +1,58 @@
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
+import { useQuery } from '@tanstack/react-query'
+
+// ── SPC Day 1 badge ───────────────────────────────────────────────────────────
+const SPC_RISK_RANK = { TSTM: 1, MRGL: 2, SLGT: 3, ENH: 4, MDT: 5, HIGH: 6 }
+
+const SPC_RISK_COLOR = {
+  TSTM: '#86efac', MRGL: '#55bb55', SLGT: '#eaea00',
+  ENH: '#e8a126',  MDT: '#ef4444',  HIGH: '#e040fb',
+}
+
+function pointInRing(lon, lat, ring) {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j]
+    if (((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi))
+      inside = !inside
+  }
+  return inside
+}
+
+function pointInFeature(lon, lat, geom) {
+  if (!geom) return false
+  const polys = geom.type === 'Polygon'      ? [geom.coordinates]
+              : geom.type === 'MultiPolygon' ? geom.coordinates : []
+  return polys.some(poly => pointInRing(lon, lat, poly[0]))
+}
+
+function deriveDay1Category(geojson, lat, lon) {
+  let bestRank = 0, bestLabel = 'NO RISK'
+  for (const f of geojson?.features ?? []) {
+    const label = (f.properties?.LABEL ?? '').toUpperCase()
+    const rank  = SPC_RISK_RANK[label] ?? 0
+    if (rank > bestRank && pointInFeature(lon, lat, f.geometry)) {
+      bestRank = rank; bestLabel = label
+    }
+  }
+  return bestLabel
+}
+
+function useSpcDay1Badge(lat, lon) {
+  const { data } = useQuery({
+    queryKey: ['spc-day1-geo'],
+    queryFn: () =>
+      fetch('https://www.spc.noaa.gov/products/outlook/day1otlk_cat.nolyr.geojson')
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json() }),
+    staleTime: 30 * 60 * 1000,
+    refetchInterval: 30 * 60 * 1000,
+    retry: false,
+  })
+  if (!data) return null
+  const cat = deriveDay1Category(data, lat, lon)
+  return cat === 'NO RISK' ? null : cat
+}
 
 function fmtUTC(date) {
   const h = String(date.getUTCHours()).padStart(2, '0')
@@ -35,7 +88,6 @@ const NAV_ITEMS = [
         <path d="M12 9v5M12 17h.01" strokeLinecap="round" />
       </svg>
     ),
-    badge: 4,
   },
   {
     id: 'observations',
@@ -72,9 +124,10 @@ const NAV_ITEMS = [
   },
 ]
 
-export default function Sidebar({ activeTab, setActiveTab }) {
+export default function Sidebar({ activeTab, setActiveTab, location }) {
   const [utc, setUtc] = useState(new Date())
   const [local, setLocal] = useState(new Date())
+  const spcRisk = useSpcDay1Badge(location?.lat, location?.lon)
 
   useEffect(() => {
     const tick = () => {
@@ -115,7 +168,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
             Antonio's Severe<br />Weather Dashboard
           </div>
           <div className="text-xs" style={{ color: '#8b92b3', marginTop: 2 }}>
-            v5.1.0
+            v5.1.1
           </div>
         </div>
       </div>
@@ -152,12 +205,18 @@ export default function Sidebar({ activeTab, setActiveTab }) {
                 >
                   <span style={{ flexShrink: 0 }}>{item.icon}</span>
                   <span style={{ flex: 1, fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>
-                  {item.badge && (
-                    <span
-                      className="text-xs font-bold rounded-full px-1.5 py-0.5"
-                      style={{ background: '#ef4444', color: '#fff', fontSize: 12 }}
-                    >
-                      {item.badge}
+                  {item.id === 'severe' && spcRisk && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, fontFamily: 'monospace',
+                      letterSpacing: '0.04em',
+                      color: SPC_RISK_COLOR[spcRisk] ?? '#8b92b3',
+                      background: `${SPC_RISK_COLOR[spcRisk] ?? '#8b92b3'}1a`,
+                      border: `1px solid ${SPC_RISK_COLOR[spcRisk] ?? '#8b92b3'}55`,
+                      borderRadius: 4,
+                      padding: '1px 5px',
+                      flexShrink: 0,
+                    }}>
+                      {spcRisk}
                     </span>
                   )}
                 </button>

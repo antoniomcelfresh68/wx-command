@@ -1,5 +1,5 @@
 import 'leaflet/dist/leaflet.css'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { MapContainer, TileLayer, WMSTileLayer, CircleMarker, GeoJSON, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -20,27 +20,28 @@ function MapController({ lat, lon }) {
 // ── Active watch/warning overlay ─────────────────────────────────────────────
 const ALERT_STYLES = {
   'Tornado Warning': {
-    color: '#ef4444', fillColor: '#ef4444',
-    fillOpacity: 0.3, opacity: 0.9, weight: 2,
+    color: '#ff0000', fillColor: '#ef4444',
+    fillOpacity: 0.35, opacity: 1.0, weight: 3,
+    className: 'tor-warning-pulse',
   },
   'Severe Thunderstorm Warning': {
-    color: '#f97316', fillColor: '#f97316',
-    fillOpacity: 0.25, opacity: 0.8, weight: 2,
+    color: '#ff6600', fillColor: '#f97316',
+    fillOpacity: 0.25, opacity: 0.9, weight: 2.5,
   },
   'Tornado Watch': {
     color: '#f59e0b', fillColor: '#f59e0b',
-    fillOpacity: 0.15, opacity: 0.7, weight: 1.5,
+    fillOpacity: 0.2, opacity: 0.8, weight: 2,
   },
   'Severe Thunderstorm Watch': {
     color: '#eab308', fillColor: '#eab308',
-    fillOpacity: 0.15, opacity: 0.7, weight: 1.5,
+    fillOpacity: 0.2, opacity: 0.8, weight: 2,
   },
 }
 
 function alertStyle(feature) {
   return ALERT_STYLES[feature?.properties?.event] ?? {
     color: '#8b92b3', fillColor: '#8b92b3',
-    fillOpacity: 0.15, opacity: 0.6, weight: 1,
+    fillOpacity: 0.2, opacity: 0.7, weight: 2,
   }
 }
 
@@ -79,30 +80,138 @@ function AlertsLayer({ data, visible }) {
   if (!polygonFeatures.length) return null
 
   return (
-    <GeoJSON
-      key={data.features.length + '-' + data.features[0]?.properties?.id}
-      data={{ type: 'FeatureCollection', features: polygonFeatures }}
-      style={alertStyle}
-      onEachFeature={(feature, layer) => {
-        const p = feature.properties ?? {}
-        const style = ALERT_STYLES[p.event] ?? {}
-        const color = style.color ?? '#8b92b3'
-        layer.bindPopup(
-          `<div style="font-family:monospace;font-size:12px;line-height:1.55;min-width:200px;max-width:260px">` +
-          `<div style="font-weight:700;color:${color};font-size:13px;margin-bottom:4px">${p.event ?? 'Alert'}</div>` +
-          `<div style="color:#555;margin-bottom:6px">${p.areaDesc ?? '—'}</div>` +
-          `<div><span style="color:#888">Issued:</span> ${fmtAlertTime(p.sent)}</div>` +
-          `<div><span style="color:#888">Expires:</span> ${fmtAlertTime(p.expires)}</div>` +
-          (p.headline ? `<div style="margin-top:6px;color:#333;font-size:11px">${p.headline}</div>` : '') +
-          `</div>`,
-          { maxWidth: 280 }
-        )
-      }}
-    />
+    <>
+      <style>{`
+        @keyframes torPulse {
+          0%, 100% { stroke-opacity: 1.0; }
+          50%       { stroke-opacity: 0.4; }
+        }
+        .tor-warning-pulse {
+          animation: torPulse 1.4s ease-in-out infinite;
+        }
+      `}</style>
+      <GeoJSON
+        key={data.features.length + '-' + data.features[0]?.properties?.id}
+        data={{ type: 'FeatureCollection', features: polygonFeatures }}
+        style={alertStyle}
+        onEachFeature={(feature, layer) => {
+          const p = feature.properties ?? {}
+          const style = ALERT_STYLES[p.event] ?? {}
+          const color = style.color ?? '#8b92b3'
+          layer.bindPopup(
+            `<div style="font-family:monospace;font-size:12px;line-height:1.55;min-width:200px;max-width:260px">` +
+            `<div style="font-weight:700;color:${color};font-size:13px;margin-bottom:4px">${p.event ?? 'Alert'}</div>` +
+            `<div style="color:#555;margin-bottom:6px">${p.areaDesc ?? '—'}</div>` +
+            `<div><span style="color:#888">Issued:</span> ${fmtAlertTime(p.sent)}</div>` +
+            `<div><span style="color:#888">Expires:</span> ${fmtAlertTime(p.expires)}</div>` +
+            (p.headline ? `<div style="margin-top:6px;color:#333;font-size:11px">${p.headline}</div>` : '') +
+            `</div>`,
+            { maxWidth: 280 }
+          )
+        }}
+      />
+    </>
   )
 }
 
-function RadarMap({ lat, lon, alertData, alertsVisible, onToggleAlerts }) {
+function fmtExpiresShort(iso) {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleString('en-US', {
+      hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+    })
+  } catch { return '—' }
+}
+
+function WarnBadge({ abbrev, label, color, features }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const count = features.length
+  const active = count > 0
+
+  useEffect(() => {
+    if (!open) return
+    function onDown(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          width: 56, padding: '7px 6px', borderRadius: 7, gap: 3,
+          border: `1px solid ${active ? color + '66' : '#1e2235'}`,
+          background: active ? color + '1c' : 'rgba(15,17,32,0.9)',
+          color: active ? color : '#8b92b3',
+          cursor: 'pointer', backdropFilter: 'blur(4px)',
+          transition: 'border-color 0.15s, background 0.15s, color 0.15s',
+        }}
+      >
+        <span style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, fontFamily: 'monospace', letterSpacing: '-0.02em' }}>
+          {count}
+        </span>
+        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', lineHeight: 1 }}>
+          {label}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 0, left: 'calc(100% + 8px)',
+          minWidth: 260, maxWidth: 340, maxHeight: 300, overflowY: 'auto',
+          background: '#0f1120', border: `1px solid ${active ? color + '55' : '#1e2235'}`,
+          borderRadius: 8, boxShadow: '0 8px 32px rgba(0,0,0,0.75)',
+          zIndex: 1100,
+        }}>
+          <div style={{
+            padding: '7px 12px 6px',
+            borderBottom: '1px solid #1e2235',
+            fontSize: 10, fontWeight: 700,
+            color: active ? color : '#8b92b3',
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+          }}>
+            {count} Active {label}
+          </div>
+          {active ? features.map((f, i) => {
+            const p = f.properties ?? {}
+            const area = (p.areaDesc ?? '').split(';')[0].trim()
+            const expires = fmtExpiresShort(p.expires)
+            return (
+              <div
+                key={p.id ?? i}
+                style={{
+                  padding: '7px 12px',
+                  borderBottom: i < features.length - 1 ? '1px solid #1e2235' : 'none',
+                  fontSize: 12, lineHeight: 1.5,
+                }}
+              >
+                <div style={{ color: '#c9cfe8' }}>
+                  <span style={{ color, fontWeight: 700, fontFamily: 'monospace' }}>{abbrev}</span>
+                  {' · expires '}{expires}
+                </div>
+                <div style={{ fontSize: 11, color: '#8b92b3', marginTop: 2 }}>{area}</div>
+              </div>
+            )
+          }) : (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: '#8b92b3' }}>
+              No active {label.toLowerCase()}.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RadarMap({ lat, lon, alertData }) {
+  const torFeatures = (alertData?.features ?? []).filter(f => f.properties?.event === 'Tornado Warning')
+  const svrFeatures = (alertData?.features ?? []).filter(f => f.properties?.event === 'Severe Thunderstorm Warning')
+
   return (
     <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
       <MapContainer
@@ -127,8 +236,8 @@ function RadarMap({ lat, lon, alertData, alertsVisible, onToggleAlerts }) {
           version="1.1.1"
           opacity={0.8}
         />
-        {/* Active watch/warning polygons */}
-        <AlertsLayer data={alertData} visible={alertsVisible} />
+        {/* Active watch/warning polygons — always visible */}
+        <AlertsLayer data={alertData} visible={true} />
         {/* Selected location marker: accent blue ring + white center dot */}
         <CircleMarker
           center={[lat, lon]}
@@ -143,21 +252,14 @@ function RadarMap({ lat, lon, alertData, alertsVisible, onToggleAlerts }) {
         <MapController lat={lat} lon={lon} />
       </MapContainer>
 
-      {/* Toggle button — top right */}
-      <button
-        onClick={onToggleAlerts}
-        style={{
-          position: 'absolute', top: 10, right: 10, zIndex: 1000,
-          padding: '4px 10px', borderRadius: 12,
-          fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
-          cursor: 'pointer', transition: 'all 0.15s ease',
-          border: alertsVisible ? '1px solid rgba(239,68,68,0.55)' : '1px solid #1e2235',
-          background: alertsVisible ? 'rgba(239,68,68,0.18)' : 'rgba(15,17,32,0.82)',
-          color: alertsVisible ? '#fca5a5' : '#8b92b3',
-        }}
-      >
-        Watches/Warnings
-      </button>
+      {/* Warning count badges — top left, stacked */}
+      <div style={{
+        position: 'absolute', top: 10, left: 10, zIndex: 1000,
+        display: 'flex', flexDirection: 'column', gap: 6,
+      }}>
+        <WarnBadge abbrev="SVR" label="SVR Warn" color="#f97316" features={svrFeatures} />
+        <WarnBadge abbrev="TOR" label="TOR Warn" color="#ef4444" features={torFeatures} />
+      </div>
 
       {/* HUD label */}
       <div style={{
@@ -326,13 +428,24 @@ function fmt(v, suffix = '') {
   return v != null ? `${v}${suffix}` : '—'
 }
 
+function getWeatherEmoji(condition) {
+  const c = condition?.toLowerCase() ?? ''
+  if (c.includes('thunder'))                              return '⛈️'
+  if (c.includes('snow'))                                 return '❄️'
+  if (c.includes('rain') || c.includes('drizzle') || c.includes('shower')) return '🌧️'
+  if (c.includes('fog')  || c.includes('mist'))           return '🌫️'
+  if (c.includes('partly cloudy') || c.includes('mostly cloudy')) return '⛅'
+  if (c.includes('cloudy') || c.includes('overcast'))     return '☁️'
+  if (c.includes('clear') || c.includes('sunny'))         return '☀️'
+  return '🌡️'
+}
+
 export default function OverviewTab({ location }) {
   const { category: day1Cat, color: day1Color, loading: day1Loading } = useSpcDay1(location.lat, location.lon)
   const { data: convData, isLoading: convLoading } = useConvectiveParams(location.lat, location.lon)
   const { value: activeWarnCount, loading: activeWarnLoading } = useActiveWarnings()
   const { data: condData, isLoading: condLoading } = useCurrentConditions(location.lat, location.lon)
   const { data: alertData } = useActiveAlerts()
-  const [alertsVisible, setAlertsVisible] = useState(true)
 
   const cape = convData?.current?.cape
   const cin  = convData?.current?.convective_inhibition
@@ -373,12 +486,7 @@ export default function OverviewTab({ location }) {
       {/* Left column: Radar — spans both rows */}
       <PanelShell style={{ gridColumn: '1', gridRow: '1 / 3' }}>
         <PanelHeader label="NEXRAD Radar" right="IEM · N0R Composite" />
-        <RadarMap
-          lat={location.lat} lon={location.lon}
-          alertData={alertData}
-          alertsVisible={alertsVisible}
-          onToggleAlerts={() => setAlertsVisible(v => !v)}
-        />
+        <RadarMap lat={location.lat} lon={location.lon} alertData={alertData} />
       </PanelShell>
 
       {/* Right top: Current Conditions */}
@@ -399,15 +507,22 @@ export default function OverviewTab({ location }) {
               {obsTime ? `Updated ${obsTime}` : (condLoading ? '…' : '—')}
             </span>
           </div>
-          {/* Big temp */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4 }}>
-            {tempDisplay === '—'
-              ? <span style={{ fontSize: 52, fontWeight: 700, lineHeight: 1, color: '#8b92b3' }}>—</span>
-              : <>
-                  <span style={{ fontSize: 52, fontWeight: 700, lineHeight: 1, color: '#f0f2ff' }}>{tempDisplay}</span>
-                  <span style={{ fontSize: 22, color: '#8b92b3', marginTop: 6 }}>°F</span>
-                </>
-            }
+          {/* Big temp + weather emoji */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4 }}>
+              {tempDisplay === '—'
+                ? <span style={{ fontSize: 52, fontWeight: 700, lineHeight: 1, color: '#8b92b3' }}>—</span>
+                : <>
+                    <span style={{ fontSize: 52, fontWeight: 700, lineHeight: 1, color: '#f0f2ff' }}>{tempDisplay}</span>
+                    <span style={{ fontSize: 22, color: '#8b92b3', marginTop: 6 }}>°F</span>
+                  </>
+              }
+            </div>
+            {condition && (
+              <span style={{ fontSize: 40, lineHeight: 1, userSelect: 'none', marginTop: 4 }} title={condition}>
+                {getWeatherEmoji(condition)}
+              </span>
+            )}
           </div>
           <div style={{ fontSize: 16, color: condDisplay === '—' ? '#8b92b3' : '#f0f2ff', marginTop: -4 }}>{condDisplay}</div>
           {/* Stats grid */}

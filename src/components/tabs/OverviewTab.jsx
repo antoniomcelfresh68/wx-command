@@ -1,5 +1,6 @@
 import 'leaflet/dist/leaflet.css'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { MapContainer, TileLayer, WMSTileLayer, CircleMarker, GeoJSON, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -440,6 +441,56 @@ function getWeatherEmoji(condition) {
   return '🌡️'
 }
 
+// ── Info tooltip ──────────────────────────────────────────────────────────────
+function InfoTip({ text }) {
+  const [visible, setVisible] = useState(false)
+  const [pos, setPos]         = useState({ top: 0, left: 0 })
+  const btnRef = useRef(null)
+
+  function show() {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 6, left: r.left })
+    }
+    setVisible(true)
+  }
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onMouseEnter={show}
+        onMouseLeave={() => setVisible(false)}
+        style={{
+          width: 13, height: 13, borderRadius: '50%',
+          border: '1px solid #8b92b366',
+          background: 'transparent',
+          color: '#8b92b3',
+          fontSize: 8, fontWeight: 700,
+          cursor: 'default', flexShrink: 0,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          padding: 0, lineHeight: 1,
+        }}
+      >
+        ?
+      </button>
+      {visible && createPortal(
+        <div style={{
+          position: 'fixed', top: pos.top, left: pos.left,
+          zIndex: 9999, maxWidth: 220, pointerEvents: 'none',
+          background: '#0f1120', border: '1px solid #2a2f4a',
+          borderRadius: 7, padding: '8px 11px',
+          fontSize: 12, color: '#c9cfe8', lineHeight: 1.6,
+          boxShadow: '0 6px 24px rgba(0,0,0,0.75)',
+        }}>
+          {text}
+        </div>,
+        document.body
+      )}
+    </>
+  )
+}
+
 export default function OverviewTab({ location }) {
   const { category: day1Cat, color: day1Color, loading: day1Loading } = useSpcDay1(location.lat, location.lon)
   const { data: convData, isLoading: convLoading } = useConvectiveParams(location.lat, location.lon)
@@ -549,9 +600,9 @@ export default function OverviewTab({ location }) {
         <PanelHeader label="Severe Highlights" />
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', overflow: 'hidden' }}>
           {[
-            { label: 'SPC Day 1',      value: day1Cat,                                                   unit: '',     color: day1Color,        dim: 'SPC · Day 1 Categorical',   live: false, loading: day1Loading      },
-            { label: 'CAPE',           value: cape != null ? Math.round(cape).toLocaleString() : '…',    unit: 'J/kg', color: capeColor(cape),  dim: 'Open-Meteo · surface',      live: false, loading: convLoading      },
-            { label: 'CIN',            value: cin  != null ? Math.round(cin).toLocaleString()  : '…',    unit: 'J/kg', color: cinColor(cin),    dim: 'Open-Meteo · surface',      live: false, loading: convLoading      },
+            { label: 'SPC Day 1',      value: day1Cat,                                                   unit: '',     color: day1Color,        dim: 'SPC · Day 1 Categorical',   live: false, loading: day1Loading,      tip: 'The Storm Prediction Center\'s severe weather outlook for today at your location. Risk levels: No Risk → TSTM → Marginal → Slight → Enhanced → Moderate → High. Higher categories mean greater organized severe weather potential.' },
+            { label: 'CAPE',           value: cape != null ? Math.round(cape).toLocaleString() : '…',    unit: 'J/kg', color: capeColor(cape),  dim: 'Open-Meteo · surface',      live: false, loading: convLoading,      tip: 'Convective Available Potential Energy — measures how much energy is available for storm development. Under 500 J/kg: weak. 1,000–2,500: significant severe potential. Above 2,500: extreme instability.' },
+            { label: 'CIN',            value: cin  != null ? Math.round(cin).toLocaleString()  : '…',    unit: 'J/kg', color: cinColor(cin),    dim: 'Open-Meteo · surface',      live: false, loading: convLoading,      tip: 'Convective Inhibition — a "cap" that suppresses storm development. Values near 0 allow storms to fire freely. Below −50 J/kg: notable cap. Below −200: strong suppression that is unlikely to break.' },
             { label: 'SVR/TOR Warnings', value: activeWarnCount,                                           unit: '',     color: '#ef4444',        dim: 'Nationwide · Live',         live: true,  loading: activeWarnLoading },
           ].map((item, i) => (
             <div
@@ -571,6 +622,7 @@ export default function OverviewTab({ location }) {
                 <span style={{ fontSize: 12, fontWeight: 600, color: '#8b92b3', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {item.label}
                 </span>
+                {item.tip && <InfoTip text={item.tip} />}
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                 <span style={{

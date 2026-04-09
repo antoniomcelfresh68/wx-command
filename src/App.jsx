@@ -21,7 +21,7 @@ export default function App() {
           <TopBar location={location} setLocation={setLocation} />
           <MainContent activeTab={activeTab} location={location} />
         </div>
-        <ChatBubble />
+        <ChatBubble location={location} />
       </div>
     </QueryClientProvider>
   )

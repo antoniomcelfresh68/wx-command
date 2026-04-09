@@ -2,6 +2,7 @@ import OverviewTab     from './tabs/OverviewTab'
 import SevereTab      from './tabs/SevereTab'
 import ObservationsTab from './tabs/ObservationsTab'
 import ForecastTab    from './tabs/ForecastTab'
+import AboutTab       from './tabs/AboutTab'
 
 export default function MainContent({ activeTab, location }) {
   return (
@@ -16,9 +17,10 @@ export default function MainContent({ activeTab, location }) {
       }}
     >
       {activeTab === 'overview'      && <OverviewTab location={location} />}
-      {activeTab === 'severe'        && <SevereTab />}
-      {activeTab === 'observations'  && <ObservationsTab />}
+      {activeTab === 'severe'        && <SevereTab location={location} />}
+      {activeTab === 'observations'  && <ObservationsTab location={location} />}
       {activeTab === 'forecast'      && <ForecastTab location={location} />}
+      {activeTab === 'about'         && <AboutTab />}
     </main>
   )
 }

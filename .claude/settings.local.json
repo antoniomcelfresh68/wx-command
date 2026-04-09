@@ -38,7 +38,12 @@
       "Bash(curl -sL \"https://mesonet.agron.iastate.edu/api/1/obhistory.json?station=KOKC&hours=2&full=1\")",
       "Bash(curl -sL \"https://mesonet.agron.iastate.edu/api/1/obhistory.json?station=KOKC&network=OK_ASOS&hours=3\")",
       "Bash(curl -sL \"https://mesonet.agron.iastate.edu/api/1/currents.geojson?network=OK_ASOS\")",
-      "Bash(curl -sI \"https://a.basemaps.cartocdn.com/dark_matter/4/4/6.png\")"
+      "Bash(curl -sI \"https://a.basemaps.cartocdn.com/dark_matter/4/4/6.png\")",
+      "Bash(npm install:*)",
+      "Bash(npm search:*)",
+      "Bash(npm info:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

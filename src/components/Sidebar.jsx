@@ -59,6 +59,17 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  {
+    id: 'about',
+    label: 'About',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="16" x2="12" y2="12" strokeLinecap="round" />
+        <line x1="12" y1="8" x2="12.01" y2="8" strokeLinecap="round" strokeWidth={2.5} />
+      </svg>
+    ),
+  },
 ]
 
 export default function Sidebar({ activeTab, setActiveTab }) {
@@ -104,7 +115,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
             Antonio's Severe<br />Weather Dashboard
           </div>
           <div className="text-xs" style={{ color: '#8b92b3', marginTop: 2 }}>
-            v5.0.0
+            v5.1.0
           </div>
         </div>
       </div>

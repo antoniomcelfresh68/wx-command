@@ -1,297 +1,361 @@
 import { useState, useEffect } from 'react'
 import 'leaflet/dist/leaflet.css'
-import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
+import { useQuery } from '@tanstack/react-query'
 
 delete L.Icon.Default.prototype._getIconUrl
 
-// ── Dewpoint color scale ──────────────────────────────────────────────────────
-function dewColor(d) {
-  if (d < 40) return '#3b82f6'   // blue   — dry
-  if (d < 55) return '#22c55e'   // green  — comfortable
-  if (d < 65) return '#f59e0b'   // yellow — humid
-  return '#f97316'               // orange — very humid
+// ── Color scales ──────────────────────────────────────────────────────────────
+function dewColor(v) {
+  if (v < 30) return '#4a1a6b'
+  if (v < 40) return '#1a3a8f'
+  if (v < 50) return '#2196f3'
+  if (v < 60) return '#4caf50'
+  if (v < 65) return '#ffeb3b'
+  if (v < 70) return '#ff9800'
+  return '#f44336'
 }
 
-// ── Severe parameter coloring & annotations ───────────────────────────────────
-function paramColor(cat, val) {
-  const G = '#22c55e', Y = '#f59e0b', O = '#f97316', R = '#ef4444', B = '#3b82f6'
-  switch (cat) {
-    case 'mlcape': case 'sbcape': case 'mucape':
-      return val < 500 ? G : val < 1500 ? Y : val < 2500 ? O : R
-    case 'srh3':   return val < 100 ? G : val < 250 ? Y : val < 400 ? O : R
-    case 'srh1':   return val < 100 ? G : val < 200 ? Y : val < 300 ? O : R
-    case 'shear6': return val < 30 ? G : val < 45 ? Y : val < 55 ? O : R
-    case 'shear1': return val < 15 ? G : val < 25 ? Y : O
-    case 'lcl':    return val > 2000 ? G : val > 1200 ? Y : val > 600 ? O : R
-    case 'li':     return val > -2 ? G : val > -4 ? Y : val > -6 ? O : R
-    case 'pwat':   return val < 0.75 ? G : val < 1.25 ? Y : val < 1.75 ? O : R
-    default: return B
-  }
+function tempColor(v) {
+  if (v < 32) return '#7b1fa2'
+  if (v < 50) return '#2196f3'
+  if (v < 65) return '#4caf50'
+  if (v < 80) return '#ffeb3b'
+  if (v < 95) return '#ff9800'
+  return '#f44336'
 }
 
-function paramNote(cat, val) {
-  switch (cat) {
-    case 'mlcape': case 'sbcape': case 'mucape':
-      return val < 500 ? 'LOW' : val < 1500 ? 'MODERATE' : val < 2500 ? 'HIGH' : 'EXTREME'
-    case 'srh3': return val < 100 ? 'WEAK' : val < 250 ? 'MODERATE' : val < 400 ? 'LARGE' : 'EXTREME'
-    case 'srh1': return val < 100 ? 'WEAK' : val < 200 ? 'MODERATE' : val < 300 ? 'LARGE' : 'EXTREME'
-    case 'shear6': return val < 30 ? 'WEAK' : val < 45 ? 'MODERATE' : 'STRONG'
-    case 'lcl':  return val > 2000 ? 'HIGH' : val > 1000 ? 'MODERATE' : 'LOW — FAVORABLE'
-    case 'li':   return val > -2 ? 'STABLE' : val > -4 ? 'UNSTABLE' : 'VERY UNSTABLE'
-    default: return null
-  }
-}
-
-// ── UI components ─────────────────────────────────────────────────────────────
-function SectionLabel({ children }) {
-  return (
-    <div style={{
-      fontSize: 12, fontWeight: 700, color: '#8b92b3',
-      textTransform: 'uppercase', letterSpacing: '0.1em',
-      padding: '12px 0 6px',
-      borderBottom: '1px solid #1e2235',
-      marginBottom: 8,
-    }}>
-      {children}
-    </div>
-  )
-}
-
-function ParamCard({ label, value, unit, cat, num, loading }) {
-  const color = loading ? '#2a2f47' : paramColor(cat, num)
-  const note  = loading ? null : paramNote(cat, num)
-  return (
-    <div style={{
-      background: '#090b14',
-      border: '1px solid #1e2235',
-      borderTop: `2px solid ${color}`,
-      borderRadius: 6,
-      padding: '10px 12px',
-      display: 'flex', flexDirection: 'column', gap: 3,
-      opacity: loading ? 0.5 : 1,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 22, fontWeight: 700, color: '#f0f2ff', lineHeight: 1 }}>
-          {loading ? '…' : value}
-        </span>
-        {unit && !loading && <span style={{ fontSize: 13, color: '#8b92b3' }}>{unit}</span>}
-      </div>
-      <span style={{ fontSize: 12, color: '#8b92b3', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
-      {note && <span style={{ fontSize: 12, color, fontWeight: 600, marginTop: 1 }}>{note}</span>}
-    </div>
-  )
-}
-
-// ── METAR station fetch (aviationweather.gov) ─────────────────────────────────
-const METAR_URL =
-  'https://aviationweather.gov/api/data/metar?format=json&taf=false&hours=1&bbox=-125,24,-65,50'
-
-function useMetarStations() {
-  const [stations, setStations] = useState([])
-  const [status, setStatus]     = useState('loading') // 'loading'|'ok'|'error'
-
-  useEffect(() => {
-    setStatus('loading')
-    fetch(METAR_URL)
-      .then(r => { if (!r.ok) throw new Error(r.status); return r.json() })
-      .then(data => {
-        const parsed = (Array.isArray(data) ? data : [])
-          .filter(s => s.lat != null && s.lon != null && s.dwpt != null && !isNaN(s.dwpt))
-          .map(s => ({
-            id:   s.stationId || s.icaoId || '???',
-            lat:  parseFloat(s.lat),
-            lon:  parseFloat(s.lon),
-            dew:  parseFloat(s.dwpt) * 9 / 5 + 32,  // °C → °F
-            temp: s.temp != null ? parseFloat(s.temp) * 9 / 5 + 32 : null,
-          }))
-        setStations(parsed)
-        setStatus('ok')
-      })
-      .catch(() => setStatus('error'))
-  }, [])
-
-  return { stations, status }
-}
-
-// ── Location for severe param fetch (KOKC) ───────────────────────────────────
-const REF_LAT = 35.22
-const REF_LON = -97.47
-
-// Only parameters with a live Open-Meteo source are shown.
-const MESO_DEFS = [
-  { key: 'cape', label: 'CAPE',         unit: 'J/kg', cat: 'mlcape', fmt: v => Math.round(v).toLocaleString(), field: 'cape'                 },
-  { key: 'cin',  label: 'CIN',          unit: 'J/kg', cat: 'default',fmt: v => Math.round(v).toLocaleString(), field: 'convective_inhibition' },
-  { key: 'li',   label: 'Lifted Index', unit: '',     cat: 'li',     fmt: v => v.toFixed(1),                   field: 'lifted_index'          },
+// ── Legend config ─────────────────────────────────────────────────────────────
+const DEW_LEGEND = [
+  { label: '< 30°F',  color: '#4a1a6b' },
+  { label: '30–40°F', color: '#1a3a8f' },
+  { label: '40–50°F', color: '#2196f3' },
+  { label: '50–60°F', color: '#4caf50' },
+  { label: '60–65°F', color: '#ffeb3b' },
+  { label: '65–70°F', color: '#ff9800' },
+  { label: '> 70°F',  color: '#f44336' },
+]
+const TEMP_LEGEND = [
+  { label: '< 32°F',  color: '#7b1fa2' },
+  { label: '32–50°F', color: '#2196f3' },
+  { label: '50–65°F', color: '#4caf50' },
+  { label: '65–80°F', color: '#ffeb3b' },
+  { label: '80–95°F', color: '#ff9800' },
+  { label: '> 95°F',  color: '#f44336' },
 ]
 
-// Open-Meteo: free, CORS-friendly, provides CAPE / LI / CIN from GFS/best-match
-// IEM spcmeso.py is permanently decommissioned (301 → HTML docs since 2025).
-// NWS gridpoint API has no CAPE/SRH/shear/LCL/PWAT fields.
-// rucsoundings.noaa.gov does not respond to browser requests.
-function useOpenMeteoParams() {
-  const [vals, setVals]     = useState({})
-  const [status, setStatus] = useState('loading')
-  const [fetchedAt, setFetchedAt] = useState(null)
-
-  useEffect(() => {
-    const params = 'cape,lifted_index,convective_inhibition'
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${REF_LAT}&longitude=${REF_LON}&current=${params}&forecast_days=1`
-
-    fetch(url)
-      .then(r => { if (!r.ok) throw new Error(r.status); return r.json() })
-      .then(data => {
-        const cur = data.current ?? {}
-        console.log('[Open-Meteo] current severe params:', cur)
-        const result = {}
-        for (const def of MESO_DEFS) {
-          const v = cur[def.field]
-          result[def.key] = (v != null && isFinite(Number(v))) ? Number(v) : null
-        }
-        setVals(result)
-        setFetchedAt(cur.time ?? null)
-        setStatus('ok')
-      })
-      .catch(err => { console.error('[Open-Meteo] fetch error:', err); setStatus('error') })
-  }, [])
-
-  return { vals, status, fetchedAt }
+// ── Map controller ────────────────────────────────────────────────────────────
+function MapController({ lat, lon }) {
+  const map = useMap()
+  useEffect(() => { map.setView([lat, lon], 5) }, [lat, lon, map])
+  return null
 }
 
+// ── Station grid — ~150 major ASOS locations across CONUS ─────────────────────
+// [id, lat, lon]
+const STATIONS = [
+  // Maine / NH / VT / MA / RI / CT
+  ['KBGR', 44.807, -68.828], ['KPWM', 43.646, -70.309],
+  ['KMHT', 42.932, -71.435], ['KBTV', 44.472, -73.153],
+  ['KBOS', 42.362, -71.006], ['KPVD', 41.723, -71.428],
+  ['KBDL', 41.938, -72.683],
+  // New York
+  ['KJFK', 40.641, -73.778], ['KLGA', 40.777, -73.873],
+  ['KBUF', 42.940, -78.732], ['KSYR', 43.111, -76.107],
+  ['KROC', 43.118, -77.672], ['KALB', 42.748, -73.802],
+  // NJ / PA / DE / MD
+  ['KEWR', 40.692, -74.169], ['KPHL', 39.872, -75.241],
+  ['KPIT', 40.491, -80.233], ['KBWI', 39.175, -76.668],
+  ['KDCA', 38.852, -77.037], ['KIAD', 38.953, -77.456],
+  // VA / WV / NC / SC
+  ['KORF', 36.898, -76.018], ['KRIC', 37.505, -77.320],
+  ['KCRW', 38.374, -81.593],
+  ['KRDU', 35.877, -78.787], ['KCLT', 35.214, -80.943],
+  ['KCAE', 33.938, -81.119], ['KCHS', 32.899, -80.040],
+  // GA / FL
+  ['KATL', 33.641, -84.427], ['KSAV', 32.127, -81.202],
+  ['KJAX', 30.494, -81.688], ['KTLH', 30.396, -84.350],
+  ['KMCO', 28.429, -81.309], ['KTPA', 27.975, -82.533],
+  ['KMIA', 25.796, -80.287], ['KFLL', 26.073, -80.152],
+  ['KPNS', 30.473, -87.187],
+  // AL / MS / TN / KY
+  ['KBHM', 33.563, -86.753], ['KHSV', 34.722, -86.775],
+  ['KMOB', 30.691, -88.243], ['KJAN', 32.311, -90.076],
+  ['KBNA', 36.124, -86.678], ['KMEM', 35.042, -89.977],
+  ['KSDF', 38.174, -85.736], ['KLEX', 38.036, -84.606],
+  // OH / IN / MI
+  ['KCLE', 41.412, -81.850], ['KCMH', 39.998, -82.892],
+  ['KDAY', 39.902, -84.219], ['KIND', 39.717, -86.294],
+  ['KEVV', 38.037, -87.532], ['KDTW', 42.212, -83.353],
+  ['KGRR', 42.881, -85.523], ['KSBN', 41.709, -86.317],
+  // IL / WI / MN
+  ['KORD', 41.978, -87.905], ['KMDW', 41.786, -87.752],
+  ['KRFD', 42.195, -89.097], ['KSPI', 39.844, -89.678],
+  ['KMKE', 42.947, -87.897], ['KGRB', 44.485, -88.130],
+  ['KEAU', 44.866, -91.484], ['KMSP', 44.882, -93.222],
+  ['KDLH', 46.842, -92.194],
+  // IA / MO / AR
+  ['KDSM', 41.534, -93.663], ['KCID', 41.885, -91.711],
+  ['KSTL', 38.748, -90.370], ['KSGF', 37.246, -93.389],
+  ['KCOU', 38.818, -92.220], ['KLIT', 34.729, -92.224],
+  ['KFSM', 35.336, -94.367],
+  // LA
+  ['KMSY', 29.993, -90.258], ['KBTR', 30.533, -91.150],
+  ['KSHV', 32.446, -93.826],
+  // ND / SD / NE / KS
+  ['KBIS', 46.773, -100.747], ['KFAR', 46.921, -96.816],
+  ['KGFK', 47.949, -97.176],  ['KRAP', 44.045, -103.057],
+  ['KABR', 45.449, -98.422],
+  ['KOMA', 41.303, -95.894],  ['KLNK', 40.851, -96.759],
+  ['KGRI', 40.968, -98.310],  ['KMCK', 40.206, -100.592],
+  ['KICT', 37.650, -97.433],  ['KTOP', 39.069, -95.663],
+  ['KHYS', 38.842, -99.273],  ['KGLD', 39.370, -101.699],
+  // OK / TX
+  ['KOKC', 35.393, -97.601],  ['KTUL', 36.198, -95.888],
+  ['KDFW', 32.897, -97.038],  ['KDAL', 32.847, -96.852],
+  ['KIAH', 29.984, -95.341],  ['KHOU', 29.645, -95.279],
+  ['KSAT', 29.534, -98.469],  ['KAUS', 30.194, -97.670],
+  ['KELP', 31.807, -106.378], ['KAMA', 35.219, -101.706],
+  ['KLBB', 33.663, -101.823], ['KABI', 32.411, -99.682],
+  ['KMAF', 31.943, -102.202], ['KCRP', 27.770, -97.501],
+  ['KSJT', 31.357, -100.496],
+  // MT / ID / WY
+  ['KBIL', 45.808, -108.543], ['KBZN', 45.778, -111.160],
+  ['KGTF', 47.482, -111.371], ['KHLN', 46.607, -111.983],
+  ['KMSO', 46.916, -114.091], ['KBOI', 43.564, -116.223],
+  ['KTWF', 42.482, -114.488], ['KPIH', 42.910, -112.596],
+  ['KCPR', 42.908, -106.464], ['KRIW', 43.064, -108.460],
+  // CO / NM / UT
+  ['KDEN', 39.856, -104.674], ['KCOS', 38.806, -104.701],
+  ['KGJT', 39.122, -108.527], ['KPUB', 38.289, -104.497],
+  ['KABQ', 35.040, -106.609], ['KROW', 33.302, -104.531],
+  ['KSLC', 40.788, -111.978],
+  // NV / AZ
+  ['KLAS', 36.080, -115.152], ['KRNO', 39.499, -119.768],
+  ['KEKO', 40.825, -115.792],
+  ['KPHX', 33.437, -112.008], ['KTUS', 32.116, -110.941],
+  ['KYUM', 32.657, -114.606], ['KFLG', 35.138, -111.671],
+  // CA
+  ['KLAX', 33.943, -118.408], ['KSAN', 32.734, -117.190],
+  ['KSFO', 37.621, -122.375], ['KSMF', 38.695, -121.591],
+  ['KFAT', 36.776, -119.718], ['KBFL', 35.434, -119.057],
+  ['KOAK', 37.721, -122.221],
+  // OR / WA
+  ['KPDX', 45.590, -122.595], ['KSEA', 47.449, -122.309],
+  ['KGEG', 47.620, -117.534], ['KYKM', 46.568, -120.544],
+  ['KMFR', 42.374, -122.873], ['KEUG', 44.125, -123.212],
+  ['KBLI', 48.793, -122.537],
+]
+
+// ── Fetch via Open-Meteo in sequential batches of 10 ─────────────────────────
+const BATCH_SIZE = 10
+
+async function fetchStations() {
+  const results = []
+
+  for (let i = 0; i < STATIONS.length; i += BATCH_SIZE) {
+    const batch = STATIONS.slice(i, i + BATCH_SIZE)
+    const batchResults = await Promise.all(
+      batch.map(async ([id, lat, lon]) => {
+        try {
+          const r = await fetch(
+            `https://api.open-meteo.com/v1/forecast` +
+            `?latitude=${lat}&longitude=${lon}` +
+            `&current=temperature_2m,dewpoint_2m` +
+            `&temperature_unit=fahrenheit&timezone=auto`
+          )
+          if (!r.ok) return null
+          const data = await r.json()
+          const cur = data?.current
+          const tmp = cur?.temperature_2m
+          const dew = cur?.dewpoint_2m
+          if (tmp == null || dew == null) return null
+          return { id, lat, lon, tmp, dew }
+        } catch {
+          return null
+        }
+      })
+    )
+    results.push(...batchResults.filter(Boolean))
+  }
+
+  console.log(`[ObservationsTab] fetched ${results.length} / ${STATIONS.length} stations successfully`)
+  return results
+}
+
+function useObsStations() {
+  return useQuery({
+    queryKey: ['obs-stations-openmeteo'],
+    queryFn: fetchStations,
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
+    retry: 1,
+  })
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function ObservationsTab() {
-  const { stations, status: mapStatus } = useMetarStations()
-  const { vals, status: mesoStatus, fetchedAt } = useOpenMeteoParams()
+export default function ObservationsTab({ location }) {
+  const [mode, setMode] = useState('dew')
 
-  const mesoLoading = mesoStatus === 'loading'
+  const { data: stations, isLoading, isError, error } = useObsStations()
+
+  const colorFn      = mode === 'dew' ? dewColor : tempColor
+  const activeLegend = mode === 'dew' ? DEW_LEGEND : TEMP_LEGEND
+  const modeLabel    = mode === 'dew' ? 'Dewpoint °F' : 'Temperature °F'
+  const visibleStations = stations ?? []
 
   return (
-    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+    <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+      <MapContainer
+        center={[location.lat, location.lon]}
+        zoom={5}
+        zoomControl={false}
+        attributionControl={false}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+      >
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          subdomains="abcd"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
+        />
 
-      {/* Left: dewpoint map */}
-      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-        <MapContainer
-          center={[39.5, -96.0]}
-          zoom={4}
-          zoomControl={false}
-          attributionControl={true}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
-        >
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            subdomains="abcd"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
-          />
-          {mapStatus === 'ok' && stations.map(st => (
-            <CircleMarker
-              key={st.id}
-              center={[st.lat, st.lon]}
-              radius={6}
-              fillColor={dewColor(st.dew)}
-              fillOpacity={0.85}
-              color="#fff"
-              weight={1}
-            >
-              <Tooltip direction="top" offset={[0, -6]}>
-                <div style={{ fontFamily: 'monospace', fontSize: 12, lineHeight: 1.6 }}>
-                  <strong>{st.id}</strong><br />
-                  Dewpoint: {Math.round(st.dew)}°F
-                  {st.temp != null && <><br />Temp: {Math.round(st.temp)}°F</>}
-                </div>
-              </Tooltip>
-            </CircleMarker>
-          ))}
-        </MapContainer>
+        {/* Station markers */}
+        {visibleStations.map(s => (
+          <CircleMarker
+            key={s.id}
+            center={[s.lat, s.lon]}
+            radius={12}
+            pathOptions={{
+              fillColor: colorFn(mode === 'dew' ? s.dew : s.tmp),
+              fillOpacity: 0.85,
+              stroke: false,
+            }}
+          >
+            <Tooltip direction="top" offset={[0, -10]} opacity={0.95}>
+              <span style={{ fontFamily: 'monospace', fontSize: 12, lineHeight: 1.5 }}>
+                <strong>{s.id}</strong><br />
+                Dew: {Math.round(s.dew)}°F<br />
+                Tmp: {Math.round(s.tmp)}°F
+              </span>
+            </Tooltip>
+          </CircleMarker>
+        ))}
 
-        {/* Status banner */}
-        {mapStatus === 'loading' && (
-          <div style={{
-            position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 1000,
-            background: 'rgba(9,11,20,0.85)', border: '1px solid #1e2235', borderRadius: 6,
-            padding: '5px 14px', fontSize: 12, color: '#8b92b3', fontFamily: 'monospace',
-          }}>
-            Loading METARs…
-          </div>
-        )}
-        {mapStatus === 'error' && (
-          <div style={{
-            position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 1000,
-            background: 'rgba(9,11,20,0.85)', border: '1px solid #e05c5c', borderRadius: 6,
-            padding: '5px 14px', fontSize: 12, color: '#e05c5c', fontFamily: 'monospace',
-          }}>
-            METAR data unavailable
-          </div>
-        )}
-        {mapStatus === 'ok' && (
-          <div style={{
-            position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 1000,
-            background: 'rgba(9,11,20,0.75)', border: '1px solid #1e2235', borderRadius: 6,
-            padding: '4px 12px', fontSize: 11, color: '#8b92b3', fontFamily: 'monospace',
-            pointerEvents: 'none',
-          }}>
-            {stations.length.toLocaleString()} stations · aviationweather.gov METAR
-          </div>
-        )}
+        {/* Selected location pin */}
+        <CircleMarker
+          center={[location.lat, location.lon]}
+          radius={7}
+          pathOptions={{ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.9, weight: 2 }}
+        />
+        <CircleMarker
+          center={[location.lat, location.lon]}
+          radius={3}
+          pathOptions={{ color: '#ffffff', fillColor: '#ffffff', fillOpacity: 1, weight: 0 }}
+        />
 
-        {/* Legend */}
-        <div style={{
-          position: 'absolute', bottom: 12, right: 12, zIndex: 1000,
-          background: 'rgba(15,17,32,0.9)', border: '1px solid #1e2235',
-          borderRadius: 6, padding: '8px 10px',
-          fontSize: 12, color: '#8b92b3',
-          display: 'flex', flexDirection: 'column', gap: 3,
-        }}>
-          <div style={{ fontWeight: 600, marginBottom: 2 }}>DEWPOINT</div>
-          {[['< 40°F', '#3b82f6'], ['40–55°F', '#22c55e'], ['55–65°F', '#f59e0b'], ['> 65°F', '#f97316']].map(([l, c]) => (
-            <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: c, flexShrink: 0 }} />
-              <span>{l}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+        <MapController lat={location.lat} lon={location.lon} />
+      </MapContainer>
 
-      {/* Right: Severe parameters panel */}
+      {/* Toggle — top right */}
       <div style={{
-        width: '42%', minWidth: 280, overflowY: 'auto',
-        background: '#090b14', borderLeft: '1px solid #1e2235',
-        padding: '4px 12px 16px',
+        position: 'absolute', top: 12, right: 14, zIndex: 1000,
+        display: 'flex', borderRadius: 5, overflow: 'hidden',
+        border: '1px solid #1e2235',
       }}>
-        <SectionLabel>
-          Severe Wx Parameters — KOKC
-          {!mesoLoading && fetchedAt && (
-            <span style={{ fontWeight: 400, marginLeft: 8, opacity: 0.55, textTransform: 'none', fontSize: 11 }}>
-              {fetchedAt.replace('T', ' ').slice(0, 16)}Z · Open-Meteo
-            </span>
-          )}
-        </SectionLabel>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-          {MESO_DEFS.map(def => {
-            const raw   = vals[def.key]
-            const num   = raw != null ? raw : 0
-            const value = raw != null ? String(def.fmt(raw)) : '—'
-            return (
-              <ParamCard
-                key={def.key}
-                label={def.label}
-                value={value}
-                unit={def.unit}
-                cat={def.cat}
-                num={num}
-                loading={mesoLoading}
-              />
-            )
-          })}
-        </div>
-
-        {mesoStatus === 'error' && (
-          <div style={{ fontSize: 12, color: '#e05c5c', marginTop: 8, fontFamily: 'monospace' }}>
-            Open-Meteo unavailable
-          </div>
-        )}
+        {[{ id: 'dew', label: 'Dewpoint' }, { id: 'temp', label: 'Temperature' }].map(({ id, label }, i) => {
+          const active = mode === id
+          return (
+            <button
+              key={id}
+              onClick={() => setMode(id)}
+              style={{
+                padding: '6px 14px',
+                background: active ? 'rgba(59,130,246,0.18)' : 'rgba(15,17,32,0.88)',
+                color: active ? '#3b82f6' : '#8b92b3',
+                border: 'none',
+                borderLeft: i > 0 ? '1px solid #1e2235' : 'none',
+                fontSize: 12, fontWeight: active ? 600 : 400,
+                cursor: 'pointer', fontFamily: 'monospace', letterSpacing: '0.04em',
+                transition: 'background 0.1s, color 0.1s',
+              }}
+            >
+              {label}
+            </button>
+          )
+        })}
       </div>
 
+      {/* HUD label — top left */}
+      <div style={{
+        position: 'absolute', top: 12, left: 14, zIndex: 1000, pointerEvents: 'none',
+        fontSize: 11, color: '#f0f2ff', opacity: 0.45,
+        fontFamily: 'monospace', letterSpacing: '0.06em',
+      }}>
+        {isLoading
+          ? `Loading observations… (0 / ${STATIONS.length})`
+          : isError
+            ? `Fetch error: ${error?.message ?? 'unavailable'}`
+            : `${visibleStations.length} stations · Open-Meteo`
+        }
+      </div>
+
+      {/* Loading overlay */}
+      {isLoading && (
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 999, pointerEvents: 'none',
+        }}>
+          <span style={{
+            background: 'rgba(9,11,20,0.82)', border: '1px solid #1e2235',
+            borderRadius: 6, padding: '8px 18px',
+            fontSize: 13, color: '#8b92b3', fontFamily: 'monospace',
+          }}>
+            Fetching station observations…
+          </span>
+        </div>
+      )}
+
+      {/* Error overlay */}
+      {isError && (
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 8,
+          zIndex: 999, pointerEvents: 'none',
+        }}>
+          <span style={{ fontSize: 13, color: '#ef4444', fontFamily: 'monospace' }}>
+            Observation data unavailable
+          </span>
+          <span style={{ fontSize: 11, color: '#8b92b3', fontFamily: 'monospace', opacity: 0.6 }}>
+            {error?.message}
+          </span>
+        </div>
+      )}
+
+      {/* Legend — bottom left */}
+      <div style={{
+        position: 'absolute', bottom: 12, left: 14, zIndex: 1000,
+        background: 'rgba(15,17,32,0.90)', border: '1px solid #1e2235',
+        borderRadius: 6, padding: '8px 10px',
+        fontSize: 11, color: '#8b92b3',
+        display: 'flex', flexDirection: 'column', gap: 3,
+      }}>
+        <div style={{
+          fontWeight: 700, marginBottom: 3,
+          textTransform: 'uppercase', letterSpacing: '0.07em', fontSize: 10,
+        }}>
+          {modeLabel}
+        </div>
+        {activeLegend.map(({ label, color }) => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{
+              width: 11, height: 11, background: color, flexShrink: 0,
+              borderRadius: 2, border: '1px solid rgba(255,255,255,0.12)',
+            }} />
+            <span>{label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

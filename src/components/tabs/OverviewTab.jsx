@@ -666,7 +666,7 @@ export default function OverviewTab({ location }) {
           </div>
           <div style={{ fontSize: 16, color: condDisplay === '—' ? '#8b92b3' : '#f0f2ff', marginTop: -4 }}>{condDisplay}</div>
           {/* Stats grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', marginTop: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
             {[
               { k: 'Dewpoint',   v: fmt(dewpF,        '°F') },
               { k: 'Humidity',   v: fmt(humidity,     '%')  },
@@ -675,9 +675,17 @@ export default function OverviewTab({ location }) {
               { k: 'Pressure',   v: fmt(pressureInHg, ' in') },
               { k: 'Visibility', v: visibMi != null ? `${visibMi} mi` : '—' },
             ].map(({ k, v }) => (
-              <div key={k}>
-                <div style={{ fontSize: 12, color: '#8b92b3', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{k}</div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: v === '—' ? '#8b92b3' : '#f0f2ff', marginTop: 1 }}>{v}</div>
+              <div key={k} style={{
+                background: '#0d1117',
+                border: '1px solid #1e2235',
+                borderRadius: 8,
+                padding: '8px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+              }}>
+                <div style={{ fontSize: 11, color: '#8b92b3', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{k}</div>
+                <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1, color: v === '—' ? '#8b92b3' : '#f0f2ff' }}>{v}</div>
               </div>
             ))}
           </div>
@@ -687,20 +695,23 @@ export default function OverviewTab({ location }) {
       {/* Right bottom: Severe Highlights */}
       <PanelShell style={{ gridColumn: '2', gridRow: '2' }}>
         <PanelHeader label="Severe Highlights" />
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, padding: '8px 12px', overflow: 'hidden' }}>
           {[
             { label: 'SPC Day 1',      value: day1Cat,                                                   unit: '',     color: day1Color,        dim: 'SPC · Day 1 Categorical',   live: false, loading: day1Loading,      tip: 'The Storm Prediction Center\'s severe weather outlook for today at your location. Risk levels: No Risk → TSTM → Marginal → Slight → Enhanced → Moderate → High. Higher categories mean greater organized severe weather potential.' },
             { label: 'CAPE',           value: cape != null ? Math.round(cape).toLocaleString() : '…',    unit: 'J/kg', color: capeColor(cape),  dim: 'Open-Meteo · surface',      live: false, loading: convLoading,      tip: 'Convective Available Potential Energy — measures how much energy is available for storm development. Under 500 J/kg: weak. 1,000–2,500: significant severe potential. Above 2,500: extreme instability.' },
             { label: 'CIN',            value: cin  != null ? Math.round(cin).toLocaleString()  : '…',    unit: 'J/kg', color: cinColor(cin),    dim: 'Open-Meteo · surface',      live: false, loading: convLoading,      tip: 'Convective Inhibition — a "cap" that suppresses storm development. Values near 0 allow storms to fire freely. Below −50 J/kg: notable cap. Below −200: strong suppression that is unlikely to break.' },
             { label: 'SVR/TOR Warnings', value: activeWarnCount,                                           unit: '',     color: '#ef4444',        dim: 'Nationwide · Live',         live: true,  loading: activeWarnLoading },
-          ].map((item, i) => (
+          ].map((item) => (
             <div
               key={item.label}
               style={{
-                padding: '14px 16px',
-                display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 6,
-                borderRight: i % 2 === 0 ? '1px solid #1e2235' : 'none',
-                borderBottom: i < 2 ? '1px solid #1e2235' : 'none',
+                background: '#0d1117',
+                border: '1px solid #1e2235',
+                borderRadius: 8,
+                padding: '8px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -708,22 +719,18 @@ export default function OverviewTab({ location }) {
                   width: 6, height: 6, borderRadius: '50%', background: item.color, flexShrink: 0,
                   animation: item.live ? 'livePulse 2s ease-in-out infinite' : 'none',
                 }} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#8b92b3', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ fontSize: 11, color: '#8b92b3', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {item.label}
                 </span>
                 {item.tip && <InfoTip text={item.tip} />}
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{
-                  fontSize: 22, fontWeight: 700, lineHeight: 1,
-                  color: item.loading ? '#8b92b3' : '#f0f2ff',
-                  fontFamily: item.loading ? 'inherit' : 'inherit',
-                }}>
+                <span style={{ fontSize: 28, fontWeight: 700, lineHeight: 1, color: item.loading ? '#8b92b3' : '#f0f2ff' }}>
                   {item.value}
                 </span>
                 {item.unit && <span style={{ fontSize: 12, color: '#8b92b3' }}>{item.unit}</span>}
               </div>
-              <span style={{ fontSize: 12, color: '#8b92b3', opacity: 0.6 }}>{item.dim}</span>
+              <span style={{ fontSize: 11, color: '#8b92b3', opacity: 0.6 }}>{item.dim}</span>
             </div>
           ))}
         </div>

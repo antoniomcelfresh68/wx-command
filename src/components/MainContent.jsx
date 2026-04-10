@@ -2,6 +2,7 @@ import OverviewTab     from './tabs/OverviewTab'
 import SevereTab      from './tabs/SevereTab'
 import ObservationsTab from './tabs/ObservationsTab'
 import ForecastTab    from './tabs/ForecastTab'
+import ChaseOpsTab    from './tabs/ChaseOpsTab'
 import AboutTab       from './tabs/AboutTab'
 
 export default function MainContent({ activeTab, location }) {
@@ -20,6 +21,7 @@ export default function MainContent({ activeTab, location }) {
       {activeTab === 'severe'        && <SevereTab location={location} />}
       {activeTab === 'observations'  && <ObservationsTab location={location} />}
       {activeTab === 'forecast'      && <ForecastTab location={location} />}
+      {activeTab === 'chaseops'      && <ChaseOpsTab location={location} />}
       {activeTab === 'about'         && <AboutTab />}
     </main>
   )

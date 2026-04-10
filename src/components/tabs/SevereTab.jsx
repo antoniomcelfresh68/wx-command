@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import 'leaflet/dist/leaflet.css'
-import { MapContainer, TileLayer, GeoJSON, CircleMarker, useMap } from 'react-leaflet'
+import { MapContainer, GeoJSON, CircleMarker, useMap } from 'react-leaflet'
+import BasemapLayers from '../BasemapLayers'
 import L from 'leaflet'
 import { useQuery, useQueries } from '@tanstack/react-query'
 import { format } from 'date-fns'
@@ -472,12 +473,7 @@ export default function SevereTab({ location }) {
           attributionControl={false}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
         >
-          {/* CartoDB Voyager — cities, roads, interstates */}
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-            subdomains="abcd"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
-          />
+          <BasemapLayers />
 
           {/* SPC outlook polygons */}
           {geoData && (

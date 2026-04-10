@@ -2,7 +2,8 @@ import 'leaflet/dist/leaflet.css'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
-import { MapContainer, TileLayer, WMSTileLayer, CircleMarker, GeoJSON, useMap } from 'react-leaflet'
+import { MapContainer, WMSTileLayer, CircleMarker, GeoJSON, useMap } from 'react-leaflet'
+import BasemapLayers from '../BasemapLayers'
 import L from 'leaflet'
 import { PanelShell, PanelHeader } from '../shared'
 
@@ -12,30 +13,39 @@ delete L.Icon.Default.prototype._getIconUrl
 // ── Live NEXRAD radar via IEM WMS ─────────────────────────────────────────────
 
 // Pans/zooms map when selected location changes (MapContainer center is init-only)
-function MapController({ lat, lon }) {
+function MapController({ lat, lon, zoomTarget }) {
   const map = useMap()
   useEffect(() => { map.setView([lat, lon], 7) }, [lat, lon, map])
+  useEffect(() => {
+    if (!zoomTarget?.geometry) return
+    try {
+      const bounds = L.geoJSON(zoomTarget.geometry).getBounds()
+      if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 10 })
+    } catch {}
+  }, [zoomTarget, map])
   return null
 }
 
 // ── Active watch/warning overlay ─────────────────────────────────────────────
 const ALERT_STYLES = {
   'Tornado Warning': {
-    color: '#ff0000', fillColor: '#ef4444',
-    fillOpacity: 0.35, opacity: 1.0, weight: 3,
+    color: '#ef4444', fillColor: '#ef4444',
+    fillOpacity: 0.30, opacity: 1.0, weight: 3.5,
     className: 'tor-warning-pulse',
   },
   'Severe Thunderstorm Warning': {
-    color: '#ff6600', fillColor: '#f97316',
-    fillOpacity: 0.25, opacity: 0.9, weight: 2.5,
+    color: '#f97316', fillColor: '#f97316',
+    fillOpacity: 0.25, opacity: 1.0, weight: 3,
   },
   'Tornado Watch': {
-    color: '#f59e0b', fillColor: '#f59e0b',
-    fillOpacity: 0.2, opacity: 0.8, weight: 2,
+    color: '#ef4444', fillColor: '#ef4444',
+    fillOpacity: 0.15, opacity: 1.0, weight: 2.5,
+    dashArray: '8 5',
   },
   'Severe Thunderstorm Watch': {
-    color: '#eab308', fillColor: '#eab308',
-    fillOpacity: 0.2, opacity: 0.8, weight: 2,
+    color: '#f59e0b', fillColor: '#f59e0b',
+    fillOpacity: 0.15, opacity: 1.0, weight: 2.5,
+    dashArray: '8 5',
   },
 }
 
@@ -57,7 +67,22 @@ function useActiveAlerts() {
       ).then(r => { if (!r.ok) throw new Error(r.status); return r.json() }),
     staleTime: 2 * 60 * 1000,
     refetchInterval: 2 * 60 * 1000,
-    retry: false,
+    retry: 2,
+  })
+}
+
+// SPC watch polygons via IEM proxy — NWS watch features always have geometry:null
+function useWatchPolygons() {
+  return useQuery({
+    queryKey: ['iem-watch-polygons'],
+    queryFn: async () => {
+      const r = await fetch('/api/iem-watches')
+      if (!r.ok) throw new Error(r.status)
+      return r.json()
+    },
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+    retry: 2,
   })
 }
 
@@ -115,6 +140,35 @@ function AlertsLayer({ data, visible }) {
   )
 }
 
+function WatchesLayer({ data }) {
+  if (!data?.features?.length) return null
+
+  const polygons = data.features.filter(
+    f => f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon'
+  )
+  if (!polygons.length) return null
+
+  return (
+    <GeoJSON
+      key={'watches-' + polygons.length}
+      data={{ type: 'FeatureCollection', features: polygons }}
+      style={(feature) => {
+        const type = feature?.properties?.type ?? ''
+        if (type === 'TOR') return {
+          color: '#ef4444', fillColor: '#ef4444',
+          fillOpacity: 0.15, opacity: 1.0, weight: 2.5,
+          dashArray: '8 5',
+        }
+        return {
+          color: '#f59e0b', fillColor: '#f59e0b',
+          fillOpacity: 0.15, opacity: 1.0, weight: 2.5,
+          dashArray: '8 5',
+        }
+      }}
+    />
+  )
+}
+
 function fmtExpiresShort(iso) {
   if (!iso) return '—'
   try {
@@ -124,7 +178,7 @@ function fmtExpiresShort(iso) {
   } catch { return '—' }
 }
 
-function WarnBadge({ abbrev, label, color, features }) {
+function WarnBadge({ abbrev, label, color, features, onFeatureClick, dashedBorder }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   const count = features.length
@@ -139,42 +193,55 @@ function WarnBadge({ abbrev, label, color, features }) {
     return () => document.removeEventListener('mousedown', onDown)
   }, [open])
 
+  const glowId = `badge-glow-${label.replace(/\s+/g, '-')}`
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
+      <style>{`
+        @keyframes ${glowId} {
+          0%, 100% { text-shadow: 0 0 8px ${color}cc, 0 0 18px ${color}66; }
+          50%       { text-shadow: 0 0 16px ${color}ff, 0 0 32px ${color}aa; }
+        }
+      `}</style>
       <button
         onClick={() => setOpen(v => !v)}
         style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          width: 56, padding: '7px 6px', borderRadius: 7, gap: 3,
-          border: `1px solid ${active ? color + '66' : '#1e2235'}`,
-          background: active ? color + '1c' : 'rgba(15,17,32,0.9)',
-          color: active ? color : '#8b92b3',
-          cursor: 'pointer', backdropFilter: 'blur(4px)',
-          transition: 'border-color 0.15s, background 0.15s, color 0.15s',
+          width: 68, padding: '9px 8px 8px', borderRadius: 9, gap: 4,
+          border: `2px ${dashedBorder ? 'dashed' : 'solid'} ${active ? color + 'bb' : color + '44'}`,
+          background: active ? `linear-gradient(160deg, ${color}22 0%, ${color}0a 100%)` : 'rgba(15,17,32,0.92)',
+          color: color,
+          cursor: 'pointer', backdropFilter: 'blur(6px)',
+          boxShadow: active ? `0 0 12px ${color}55, 0 0 24px ${color}22, inset 0 0 8px ${color}11` : '0 2px 8px rgba(0,0,0,0.5)',
+          transition: 'all 0.2s ease',
         }}
       >
-        <span style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, fontFamily: 'monospace', letterSpacing: '-0.02em' }}>
+        <span style={{
+          fontSize: 30, fontWeight: 900, lineHeight: 1, fontFamily: 'monospace', letterSpacing: '-0.03em',
+          animation: active ? `${glowId} 2s ease-in-out infinite` : 'none',
+        }}>
           {count}
         </span>
-        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', lineHeight: 1 }}>
+        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', lineHeight: 1, opacity: 1 }}>
           {label}
         </span>
       </button>
 
       {open && (
         <div style={{
-          position: 'absolute', top: 0, left: 'calc(100% + 8px)',
-          minWidth: 260, maxWidth: 340, maxHeight: 300, overflowY: 'auto',
-          background: '#0f1120', border: `1px solid ${active ? color + '55' : '#1e2235'}`,
-          borderRadius: 8, boxShadow: '0 8px 32px rgba(0,0,0,0.75)',
+          position: 'absolute', top: 0, left: 'calc(100% + 10px)',
+          minWidth: 280, maxWidth: 360, maxHeight: 340, overflowY: 'auto',
+          background: '#0a0c1a', border: `1px solid ${color}44`,
+          borderRadius: 10, boxShadow: `0 12px 40px rgba(0,0,0,0.85), 0 0 0 1px ${color}22`,
           zIndex: 1100,
         }}>
           <div style={{
-            padding: '7px 12px 6px',
-            borderBottom: '1px solid #1e2235',
-            fontSize: 10, fontWeight: 700,
+            padding: '9px 14px 8px',
+            borderBottom: `1px solid ${color}22`,
+            fontSize: 10, fontWeight: 800,
             color: active ? color : '#8b92b3',
-            letterSpacing: '0.08em', textTransform: 'uppercase',
+            letterSpacing: '0.1em', textTransform: 'uppercase',
+            background: `linear-gradient(90deg, ${color}18 0%, transparent 100%)`,
           }}>
             {count} Active {label}
           </div>
@@ -185,21 +252,37 @@ function WarnBadge({ abbrev, label, color, features }) {
             return (
               <div
                 key={p.id ?? i}
+                onClick={() => { onFeatureClick?.(f); setOpen(false) }}
                 style={{
-                  padding: '7px 12px',
-                  borderBottom: i < features.length - 1 ? '1px solid #1e2235' : 'none',
-                  fontSize: 12, lineHeight: 1.5,
+                  padding: '9px 12px 9px 0',
+                  borderBottom: i < features.length - 1 ? `1px solid #1a1d30` : 'none',
+                  display: 'flex', alignItems: 'stretch', gap: 0,
+                  cursor: 'pointer', transition: 'background 0.12s',
                 }}
+                onMouseEnter={e => e.currentTarget.style.background = `${color}12`}
+                onMouseLeave={e => e.currentTarget.style.background = ''}
               >
-                <div style={{ color: '#c9cfe8' }}>
-                  <span style={{ color, fontWeight: 700, fontFamily: 'monospace' }}>{abbrev}</span>
-                  {' · expires '}{expires}
+                {/* colored left accent bar */}
+                <div style={{ width: 3, borderRadius: '0 2px 2px 0', background: color, marginRight: 10, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
+                    {/* pill tag */}
+                    <span style={{
+                      fontSize: 10, fontWeight: 800, fontFamily: 'monospace',
+                      padding: '1px 6px', borderRadius: 4,
+                      background: color + '28', color, border: `1px solid ${color}55`,
+                      letterSpacing: '0.06em',
+                    }}>{abbrev}</span>
+                    <span style={{ fontSize: 11, color: '#6b7280', fontFamily: 'monospace' }}>
+                      exp <span style={{ color: '#c9cfe8', fontWeight: 600 }}>{expires}</span>
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#8b92b3', lineHeight: 1.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{area}</div>
                 </div>
-                <div style={{ fontSize: 11, color: '#8b92b3', marginTop: 2 }}>{area}</div>
               </div>
             )
           }) : (
-            <div style={{ padding: '10px 12px', fontSize: 12, color: '#8b92b3' }}>
+            <div style={{ padding: '12px 14px', fontSize: 12, color: '#8b92b3' }}>
               No active {label.toLowerCase()}.
             </div>
           )}
@@ -210,8 +293,13 @@ function WarnBadge({ abbrev, label, color, features }) {
 }
 
 function RadarMap({ lat, lon, alertData }) {
-  const torFeatures = (alertData?.features ?? []).filter(f => f.properties?.event === 'Tornado Warning')
-  const svrFeatures = (alertData?.features ?? []).filter(f => f.properties?.event === 'Severe Thunderstorm Warning')
+  const [zoomTarget, setZoomTarget] = useState(null)
+  const { data: watchData } = useWatchPolygons()
+  const features = alertData?.features ?? []
+  const torFeatures  = features.filter(f => f.properties?.event === 'Tornado Warning')
+  const svrFeatures  = features.filter(f => f.properties?.event === 'Severe Thunderstorm Warning')
+  const torWFeatures = features.filter(f => f.properties?.event === 'Tornado Watch')
+  const svrWFeatures = features.filter(f => f.properties?.event === 'Severe Thunderstorm Watch')
 
   return (
     <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
@@ -222,12 +310,7 @@ function RadarMap({ lat, lon, alertData }) {
         attributionControl={false}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
       >
-        {/* CartoDB Voyager — cities, roads, interstates */}
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          subdomains="abcd"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
-        />
+        <BasemapLayers />
         {/* IEM NEXRAD composite reflectivity WMS overlay */}
         <WMSTileLayer
           url="https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0r.cgi"
@@ -237,8 +320,10 @@ function RadarMap({ lat, lon, alertData }) {
           version="1.1.1"
           opacity={0.8}
         />
-        {/* Active watch/warning polygons — always visible */}
+        {/* Active warning polygons (NWS — has real geometry for warnings) */}
         <AlertsLayer data={alertData} visible={true} />
+        {/* Active watch polygons (IEM/SPC — NWS watch features have geometry:null) */}
+        <WatchesLayer data={watchData} />
         {/* Selected location marker: accent blue ring + white center dot */}
         <CircleMarker
           center={[lat, lon]}
@@ -250,16 +335,20 @@ function RadarMap({ lat, lon, alertData }) {
           radius={3}
           pathOptions={{ color: '#ffffff', fillColor: '#ffffff', fillOpacity: 1, weight: 0 }}
         />
-        <MapController lat={lat} lon={lon} />
+        <MapController lat={lat} lon={lon} zoomTarget={zoomTarget} />
       </MapContainer>
 
-      {/* Warning count badges — top left, stacked */}
+      {/* Warning count badges — top left, stacked inside dark panel */}
       <div style={{
         position: 'absolute', top: 10, left: 10, zIndex: 1000,
         display: 'flex', flexDirection: 'column', gap: 6,
+        background: '#0f1120', borderRadius: 8, padding: 8,
+        border: '1px solid #1e2235',
       }}>
-        <WarnBadge abbrev="SVR" label="SVR Warn" color="#f97316" features={svrFeatures} />
-        <WarnBadge abbrev="TOR" label="TOR Warn" color="#ef4444" features={torFeatures} />
+        <WarnBadge abbrev="TOR" label="TOR Warn"   color="#ef4444" features={torFeatures}  onFeatureClick={setZoomTarget} />
+        <WarnBadge abbrev="TOR" label="TOR Watch"  color="#ef4444" features={torWFeatures} onFeatureClick={setZoomTarget} dashedBorder />
+        <WarnBadge abbrev="SVR" label="SVR Warn"   color="#f97316" features={svrFeatures}  onFeatureClick={setZoomTarget} />
+        <WarnBadge abbrev="SVR" label="TSTM Watch" color="#f59e0b" features={svrWFeatures} onFeatureClick={setZoomTarget} dashedBorder />
       </div>
 
       {/* HUD label */}

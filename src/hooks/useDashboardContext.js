@@ -115,17 +115,18 @@ function parseAvMetar(arr) {
 export function useDashboardContext(location) {
   const { lat, lon, label, stationId: knownStid } = location
 
-  // Nearest ASOS station (same queryKey as OverviewTab — cache hit when tab is open)
+  // Nearest ASOS station — IEM API v1, distance param in miles
   const { data: nearestStid } = useQuery({
     queryKey: ['nearest-station', lat, lon],
     queryFn: async () => {
       const r = await fetch(
-        `https://mesonet.agron.iastate.edu/api/1/stations.json?network=ASOS&within=50&lat=${lat}&lon=${lon}`
+        `https://mesonet.agron.iastate.edu/api/1/stations.json?network=ASOS&distance=50&lat=${lat}&lon=${lon}`
       )
       if (!r.ok) throw new Error(r.status)
       const data = await r.json()
+      // IEM v1 returns { data: [...] } where each entry has a 'stid' field
       const stations = data?.data ?? data?.stations ?? []
-      return stations[0]?.stid ?? null
+      return stations[0]?.stid ?? stations[0]?.id ?? null
     },
     staleTime: 10 * 60 * 1000,
     retry: false,
@@ -139,8 +140,9 @@ export function useDashboardContext(location) {
     enabled: !!stid,
     queryFn: async () => {
       try {
+        // Routed through Vite proxy — aviationweather.gov is CORS-blocked in browser
         const r = await fetch(
-          `https://aviationweather.gov/api/data/metar?ids=${stid}&format=json&taf=false&hours=1`
+          `/api/metar?ids=${stid}&format=json&taf=false&hours=1`
         )
         if (r.ok) {
           const parsed = parseAvMetar(await r.json())

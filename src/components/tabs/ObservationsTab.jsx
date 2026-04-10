@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import 'leaflet/dist/leaflet.css'
-import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from 'react-leaflet'
+import { MapContainer, CircleMarker, Tooltip, useMap } from 'react-leaflet'
+import BasemapLayers from '../BasemapLayers'
 import L from 'leaflet'
 import { useQuery } from '@tanstack/react-query'
 
@@ -214,11 +215,7 @@ export default function ObservationsTab({ location }) {
         attributionControl={false}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
       >
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          subdomains="abcd"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
-        />
+        <BasemapLayers />
 
         {/* Station markers */}
         {visibleStations.map(s => (

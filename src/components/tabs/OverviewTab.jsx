@@ -497,6 +497,20 @@ function useCurrentConditions(lat, lon) {
   })
 }
 
+function useTodayHighLow(lat, lon) {
+  return useQuery({
+    queryKey: ['today-highlow', lat, lon],
+    queryFn: () =>
+      fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+        `&daily=temperature_2m_max,temperature_2m_min` +
+        `&temperature_unit=fahrenheit&timezone=auto&forecast_days=1`
+      ).then(r => { if (!r.ok) throw new Error(r.status); return r.json() }),
+    staleTime: 30 * 60 * 1000,
+    retry: false,
+  })
+}
+
 // ── Main layout ───────────────────────────────────────────────────────────────
 function capeColor(v) {
   if (v == null) return '#8b92b3'
@@ -580,12 +594,12 @@ function InfoTip({ text }) {
   )
 }
 
-export default function OverviewTab({ location }) {
+export default function OverviewTab({ location, setActiveTab }) {
   const { category: day1Cat, color: day1Color, loading: day1Loading } = useSpcDay1(location.lat, location.lon)
   const { data: convData, isLoading: convLoading } = useConvectiveParams(location.lat, location.lon)
-  const { value: activeWarnCount, loading: activeWarnLoading } = useActiveWarnings()
   const { data: condData, isLoading: condLoading } = useCurrentConditions(location.lat, location.lon)
   const { data: alertData } = useActiveAlerts()
+  const { data: hlData } = useTodayHighLow(location.lat, location.lon)
 
   const cape = convData?.current?.cape
   const cin  = convData?.current?.convective_inhibition
@@ -602,6 +616,9 @@ export default function OverviewTab({ location }) {
   const visibMi     = cur?.visibility        != null ? (cur.visibility / 1609.34).toFixed(1) : null
   const condition   = cur?.weathercode       != null ? wmoCondition(cur.weathercode)     : null
   const obsTime     = cur?.time              != null ? fmtObsTime(cur.time)              : null
+
+  const todayHigh = hlData?.daily?.temperature_2m_max?.[0] != null ? Math.round(hlData.daily.temperature_2m_max[0]) : null
+  const todayLow  = hlData?.daily?.temperature_2m_min?.[0] != null ? Math.round(hlData.daily.temperature_2m_min[0]) : null
 
   // Derived display values
   const tempDisplay = tempF != null ? String(tempF) : '—'
@@ -658,11 +675,31 @@ export default function OverviewTab({ location }) {
                   </>
               }
             </div>
-            {condition && (
-              <span style={{ fontSize: 40, lineHeight: 1, userSelect: 'none', marginTop: 4 }} title={condition}>
-                {getWeatherEmoji(condition)}
-              </span>
-            )}
+            <button
+              onClick={() => setActiveTab?.('forecast')}
+              title="View forecast"
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px',
+                borderRadius: 8, transition: 'background 0.1s', marginTop: 2,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+            >
+              {condition && (
+                <span style={{ fontSize: 40, lineHeight: 1, userSelect: 'none' }}>
+                  {getWeatherEmoji(condition)}
+                </span>
+              )}
+              <div style={{ display: 'flex', gap: 7, alignItems: 'baseline' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>
+                  H:{todayHigh != null ? `${todayHigh}°` : '—'}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#93c5fd' }}>
+                  L:{todayLow != null ? `${todayLow}°` : '—'}
+                </span>
+              </div>
+            </button>
           </div>
           <div style={{ fontSize: 16, color: condDisplay === '—' ? '#8b92b3' : '#f0f2ff', marginTop: -4 }}>{condDisplay}</div>
           {/* Stats grid */}
@@ -697,10 +734,9 @@ export default function OverviewTab({ location }) {
         <PanelHeader label="Severe Highlights" />
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, padding: '8px 12px', overflow: 'hidden' }}>
           {[
-            { label: 'SPC Day 1',      value: day1Cat,                                                   unit: '',     color: day1Color,        dim: 'SPC · Day 1 Categorical',   live: false, loading: day1Loading,      tip: 'The Storm Prediction Center\'s severe weather outlook for today at your location. Risk levels: No Risk → TSTM → Marginal → Slight → Enhanced → Moderate → High. Higher categories mean greater organized severe weather potential.' },
-            { label: 'CAPE',           value: cape != null ? Math.round(cape).toLocaleString() : '…',    unit: 'J/kg', color: capeColor(cape),  dim: 'Open-Meteo · surface',      live: false, loading: convLoading,      tip: 'Convective Available Potential Energy — measures how much energy is available for storm development. Under 500 J/kg: weak. 1,000–2,500: significant severe potential. Above 2,500: extreme instability.' },
-            { label: 'CIN',            value: cin  != null ? Math.round(cin).toLocaleString()  : '…',    unit: 'J/kg', color: cinColor(cin),    dim: 'Open-Meteo · surface',      live: false, loading: convLoading,      tip: 'Convective Inhibition — a "cap" that suppresses storm development. Values near 0 allow storms to fire freely. Below −50 J/kg: notable cap. Below −200: strong suppression that is unlikely to break.' },
-            { label: 'SVR/TOR Warnings', value: activeWarnCount,                                           unit: '',     color: '#ef4444',        dim: 'Nationwide · Live',         live: true,  loading: activeWarnLoading },
+            { label: 'SPC Day 1', value: day1Cat,                                                unit: '',     color: day1Color,       dim: 'SPC · Day 1 Categorical', live: false, loading: day1Loading, tip: 'The Storm Prediction Center\'s severe weather outlook for today at your location. Risk levels: No Risk → TSTM → Marginal → Slight → Enhanced → Moderate → High. Higher categories mean greater organized severe weather potential.' },
+            { label: 'CAPE',      value: cape != null ? Math.round(cape).toLocaleString() : '…', unit: 'J/kg', color: capeColor(cape), dim: 'Open-Meteo · surface',      live: false, loading: convLoading,  tip: 'Convective Available Potential Energy — measures how much energy is available for storm development. Under 500 J/kg: weak. 1,000–2,500: significant severe potential. Above 2,500: extreme instability.' },
+            { label: 'CIN',       value: cin  != null ? Math.round(cin).toLocaleString()  : '…', unit: 'J/kg', color: cinColor(cin),   dim: 'Open-Meteo · surface',      live: false, loading: convLoading,  tip: 'Convective Inhibition — a "cap" that suppresses storm development. Values near 0 allow storms to fire freely. Below −50 J/kg: notable cap. Below −200: strong suppression that is unlikely to break.' },
           ].map((item) => (
             <div
               key={item.label}
@@ -733,6 +769,40 @@ export default function OverviewTab({ location }) {
               <span style={{ fontSize: 11, color: '#8b92b3', opacity: 0.6 }}>{item.dim}</span>
             </div>
           ))}
+
+          {/* Chase Ops shortcut card */}
+          <button
+            onClick={() => setActiveTab?.('chaseops')}
+            style={{
+              background: '#0d1117',
+              border: '1px solid #1e2235',
+              borderRadius: 8,
+              padding: '8px 12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'border-color 0.15s, background 0.15s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = '#3b82f688'
+              e.currentTarget.style.background = '#0d1117'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = '#1e2235'
+              e.currentTarget.style.background = '#0d1117'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: '#8b92b3', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                Chase Ops
+              </span>
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1, color: '#3b82f6' }}>→</div>
+            <span style={{ fontSize: 11, color: '#8b92b3', opacity: 0.6 }}>Open chase dashboard</span>
+          </button>
         </div>
       </PanelShell>
     </div>

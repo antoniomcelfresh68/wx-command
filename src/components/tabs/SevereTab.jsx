@@ -41,6 +41,17 @@ function getBadgeUrl(day) {
     : `https://www.spc.noaa.gov/products/outlook/day${day}otlk_cat.nolyr.geojson`
 }
 
+// ── Probability extractor ─────────────────────────────────────────────────────
+// SPC GeoJSON uses LABEL as a decimal fraction ("0.02") — DN is the integer percentage (2).
+function probFromFeature(f) {
+  const dn = f.properties?.DN
+  if (dn != null && !isNaN(dn)) return dn
+  const raw = f.properties?.LABEL ?? f.properties?.LABEL2 ?? ''
+  const v = parseFloat(raw)
+  if (isNaN(v)) return NaN
+  return v < 1 ? Math.round(v * 100) : Math.round(v)
+}
+
 // ── Feature style functions ───────────────────────────────────────────────────
 function styleCategorical(feature) {
   const label = (feature.properties?.LABEL || '').toUpperCase()
@@ -49,8 +60,7 @@ function styleCategorical(feature) {
 }
 
 function styleProbabilistic(feature) {
-  const raw = feature.properties?.LABEL || feature.properties?.LABEL2 || ''
-  const prob = parseInt(raw, 10)
+  const prob = probFromFeature(feature)
   const entry = PROB_COLORS.find(p => prob >= p.min)
   const color = entry ? entry.color : '#888888'
   return { color, fillColor: color, fillOpacity: 0.45, weight: 1.5, opacity: 0.85 }
@@ -58,9 +68,8 @@ function styleProbabilistic(feature) {
 
 // Tornado/wind/hail probability outlooks use a similar numeric label scheme
 function styleTornProb(feature) {
-  const raw = feature.properties?.LABEL || feature.properties?.LABEL2 || ''
-  const prob = parseInt(raw, 10)
-  if (isNaN(prob)) return { color: '#888', fillColor: '#888', fillOpacity: 0.35, weight: 1.5, opacity: 0.7 }
+  const prob = probFromFeature(feature)
+  if (isNaN(prob) || prob === 0) return { color: '#888', fillColor: '#888', fillOpacity: 0.35, weight: 1.5, opacity: 0.7 }
   const palette = [
     { min: 60, color: '#ff00ff' },
     { min: 45, color: '#e05c5c' },
@@ -104,11 +113,10 @@ function useAllDayBadges() {
     if (day >= 4) {
       let maxProb = 0
       for (const f of data.features) {
-        const raw = f.properties?.LABEL || f.properties?.LABEL2 || ''
-        const p = parseInt(raw, 10)
+        const p = probFromFeature(f)
         if (!isNaN(p) && p > maxProb) maxProb = p
       }
-      return maxProb > 0 ? `${maxProb}%` : '0%'
+      return maxProb > 0 ? `${maxProb}%` : null
     } else {
       let bestRank = 0, bestLabel = null
       for (const f of data.features) {
@@ -307,9 +315,8 @@ function getHoverInfo(day, filter, feature) {
     const label = (props.LABEL ?? '').toUpperCase()
     return { displayLabel: label || 'NO RISK', color: SPC_COLORS[label] ?? '#8b92b3' }
   }
-  const raw  = props.LABEL ?? props.LABEL2 ?? ''
-  const prob = parseInt(raw, 10)
-  const displayLabel = isNaN(prob) ? (raw || '—') : `${prob}%`
+  const prob = probFromFeature(feature)
+  const displayLabel = isNaN(prob) ? (props.LABEL2 || props.LABEL || '—') : `${prob}%`
   const palette = day >= 4 ? PROB_COLORS : TORN_PROB_COLORS
   const entry = palette.find(p => prob >= p.min)
   return { displayLabel, color: entry?.color ?? '#888888' }
@@ -347,7 +354,20 @@ export default function SevereTab({ location }) {
     setGeoData(null)
     fetch(getSpcUrl(activeDay, activeFilter))
       .then(r => { if (!r.ok) throw new Error(r.status); return r.json() })
-      .then(data => { setGeoData(data); setStatus('ok') })
+      .then(data => {
+        // For probabilistic views, sort features ascending by probability so that
+        // higher-prob polygons are rendered last (on top in SVG) and correctly catch
+        // mouse events when nested polygons overlap (e.g. 2% zone contains 5% zone).
+        if (data?.features && activeFilter !== 'cat') {
+          data.features.sort((a, b) => {
+            const pa = probFromFeature(a)
+            const pb = probFromFeature(b)
+            return (isNaN(pa) ? -Infinity : pa) - (isNaN(pb) ? -Infinity : pb)
+          })
+        }
+        setGeoData(data)
+        setStatus('ok')
+      })
       .catch(() => setStatus('error'))
   }, [activeDay, activeFilter])
 

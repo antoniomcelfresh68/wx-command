@@ -24,13 +24,6 @@ export default function BasemapLayers() {
         opacity={0.6}
         zIndex={3}
       />
-      {/* ESRI World Boundaries and Places — state lines */}
-      <TileLayer
-        url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-        attribution='&copy; Esri'
-        opacity={0.5}
-        zIndex={4}
-      />
     </>
   )
 }

@@ -34,11 +34,14 @@ function deriveCatCategory(geojson, lat, lon) {
 }
 
 // Returns highest probability (e.g. "5%") the point falls within, or null
+// SPC LABEL is a decimal fraction ("0.05"), DN is the integer percentage (5)
 function deriveHighestProb(geojson, lat, lon) {
   let best = 0
   for (const f of geojson?.features ?? []) {
-    const raw  = f.properties?.LABEL ?? f.properties?.LABEL2 ?? ''
-    const prob = parseInt(raw, 10)
+    const dn = f.properties?.DN
+    const prob = dn != null && !isNaN(dn)
+      ? dn
+      : (() => { const v = parseFloat(f.properties?.LABEL ?? ''); return isNaN(v) ? NaN : v < 1 ? Math.round(v * 100) : Math.round(v) })()
     if (!isNaN(prob) && prob > best && pointInFeature(lon, lat, f.geometry)) {
       best = prob
     }

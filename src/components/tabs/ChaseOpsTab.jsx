@@ -35,50 +35,51 @@ const WARN_STYLES = {
 }
 
 // ── Upper-air rawinsonde stations (WMO ID, name, lat, lon) ───────────────────
+// sid = NWS station ID used in SPC sounding archive filenames
 const UPPER_AIR_STATIONS = [
-  { id: 72201, name: 'Key West, FL',       lat: 24.55, lon: -81.75 },
-  { id: 72210, name: 'Tampa, FL',          lat: 27.70, lon: -82.40 },
-  { id: 72214, name: 'Tallahassee, FL',    lat: 30.38, lon: -84.37 },
-  { id: 72215, name: 'Peachtree City, GA', lat: 33.35, lon: -84.57 },
-  { id: 72230, name: 'Corpus Christi, TX', lat: 27.77, lon: -97.50 },
-  { id: 72233, name: 'Lake Charles, LA',   lat: 30.12, lon: -93.22 },
-  { id: 72240, name: 'New Orleans, LA',    lat: 29.98, lon: -90.05 },
-  { id: 72247, name: 'Jackson, MS',        lat: 32.32, lon: -90.08 },
-  { id: 72249, name: 'Birmingham, AL',     lat: 33.17, lon: -86.77 },
-  { id: 72250, name: 'Charleston, SC',     lat: 32.90, lon: -80.03 },
-  { id: 72265, name: 'Little Rock, AR',    lat: 34.83, lon: -92.25 },
-  { id: 72274, name: 'Nashville, TN',      lat: 36.25, lon: -86.57 },
-  { id: 72305, name: 'Brownsville, TX',    lat: 25.90, lon: -97.43 },
-  { id: 72317, name: 'Del Rio, TX',        lat: 29.37, lon: -100.92 },
-  { id: 72329, name: 'Midland, TX',        lat: 31.93, lon: -102.18 },
-  { id: 72340, name: 'Amarillo, TX',       lat: 35.23, lon: -101.70 },
-  { id: 72357, name: 'Fort Worth, TX',     lat: 32.83, lon: -97.30 },
-  { id: 72363, name: 'Norman, OK',         lat: 35.18, lon: -97.44 },
-  { id: 72376, name: 'Dodge City, KS',     lat: 37.77, lon: -99.97 },
-  { id: 72388, name: 'Denver, CO',         lat: 39.75, lon: -104.87 },
-  { id: 72393, name: 'Salt Lake City, UT', lat: 40.77, lon: -111.97 },
-  { id: 72402, name: 'Wallops Island, VA', lat: 37.93, lon: -75.48 },
-  { id: 72403, name: 'Pittsburgh, PA',     lat: 40.48, lon: -80.22 },
-  { id: 72426, name: 'Buffalo, NY',        lat: 42.93, lon: -78.73 },
-  { id: 72429, name: 'Albany, NY',         lat: 42.70, lon: -73.83 },
-  { id: 72433, name: 'Detroit, MI',        lat: 42.23, lon: -83.74 },
-  { id: 72440, name: 'Lincoln, IL',        lat: 40.15, lon: -89.35 },
-  { id: 72451, name: 'Omaha, NE',          lat: 41.37, lon: -96.37 },
-  { id: 72469, name: 'Topeka, KS',         lat: 39.07, lon: -95.62 },
-  { id: 72493, name: 'Riverton, WY',       lat: 43.07, lon: -108.45 },
-  { id: 72501, name: 'Caribou, ME',        lat: 46.87, lon: -68.02 },
-  { id: 72518, name: 'Upton, NY',          lat: 40.87, lon: -72.87 },
-  { id: 72558, name: 'Rapid City, SD',     lat: 44.07, lon: -103.07 },
-  { id: 72562, name: 'Chanhassen, MN',     lat: 44.83, lon: -93.57 },
-  { id: 72572, name: 'Aberdeen, SD',       lat: 45.45, lon: -98.43 },
-  { id: 72597, name: 'Medford, OR',        lat: 42.38, lon: -122.87 },
-  { id: 72645, name: 'Green Bay, WI',      lat: 44.48, lon: -88.13 },
-  { id: 72659, name: 'Duluth, MN',         lat: 46.83, lon: -92.18 },
-  { id: 72672, name: 'Bismarck, ND',       lat: 46.77, lon: -100.75 },
-  { id: 72694, name: 'Great Falls, MT',    lat: 47.47, lon: -111.38 },
-  { id: 72712, name: 'Gray, ME',           lat: 43.90, lon: -70.25 },
-  { id: 72776, name: 'Oakland, CA',        lat: 37.73, lon: -122.22 },
-  { id: 72785, name: 'Vandenberg, CA',     lat: 34.73, lon: -120.57 },
+  { sid: 'EYW', name: 'Key West, FL',       lat: 24.55, lon: -81.75 },
+  { sid: 'TBW', name: 'Tampa, FL',          lat: 27.70, lon: -82.40 },
+  { sid: 'TLH', name: 'Tallahassee, FL',    lat: 30.38, lon: -84.37 },
+  { sid: 'FFC', name: 'Peachtree City, GA', lat: 33.35, lon: -84.57 },
+  { sid: 'CRP', name: 'Corpus Christi, TX', lat: 27.77, lon: -97.50 },
+  { sid: 'LCH', name: 'Lake Charles, LA',   lat: 30.12, lon: -93.22 },
+  { sid: 'LIX', name: 'New Orleans, LA',    lat: 29.98, lon: -90.05 },
+  { sid: 'JAN', name: 'Jackson, MS',        lat: 32.32, lon: -90.08 },
+  { sid: 'BMX', name: 'Birmingham, AL',     lat: 33.17, lon: -86.77 },
+  { sid: 'CHS', name: 'Charleston, SC',     lat: 32.90, lon: -80.03 },
+  { sid: 'LZK', name: 'Little Rock, AR',    lat: 34.83, lon: -92.25 },
+  { sid: 'OHX', name: 'Nashville, TN',      lat: 36.25, lon: -86.57 },
+  { sid: 'BRO', name: 'Brownsville, TX',    lat: 25.90, lon: -97.43 },
+  { sid: 'DRT', name: 'Del Rio, TX',        lat: 29.37, lon: -100.92 },
+  { sid: 'MAF', name: 'Midland, TX',        lat: 31.93, lon: -102.18 },
+  { sid: 'AMA', name: 'Amarillo, TX',       lat: 35.23, lon: -101.70 },
+  { sid: 'FWD', name: 'Fort Worth, TX',     lat: 32.83, lon: -97.30 },
+  { sid: 'OUN', name: 'Norman, OK',         lat: 35.18, lon: -97.44 },
+  { sid: 'DDC', name: 'Dodge City, KS',     lat: 37.77, lon: -99.97 },
+  { sid: 'DNR', name: 'Denver, CO',         lat: 39.75, lon: -104.87 },
+  { sid: 'SLC', name: 'Salt Lake City, UT', lat: 40.77, lon: -111.97 },
+  { sid: 'WAL', name: 'Wallops Island, VA', lat: 37.93, lon: -75.48 },
+  { sid: 'PIT', name: 'Pittsburgh, PA',     lat: 40.48, lon: -80.22 },
+  { sid: 'BUF', name: 'Buffalo, NY',        lat: 42.93, lon: -78.73 },
+  { sid: 'ALB', name: 'Albany, NY',         lat: 42.70, lon: -73.83 },
+  { sid: 'DTX', name: 'Detroit, MI',        lat: 42.23, lon: -83.74 },
+  { sid: 'ILX', name: 'Lincoln, IL',        lat: 40.15, lon: -89.35 },
+  { sid: 'OAX', name: 'Omaha, NE',          lat: 41.37, lon: -96.37 },
+  { sid: 'TOP', name: 'Topeka, KS',         lat: 39.07, lon: -95.62 },
+  { sid: 'RIW', name: 'Riverton, WY',       lat: 43.07, lon: -108.45 },
+  { sid: 'CAR', name: 'Caribou, ME',        lat: 46.87, lon: -68.02 },
+  { sid: 'OKX', name: 'Upton, NY',          lat: 40.87, lon: -72.87 },
+  { sid: 'UNR', name: 'Rapid City, SD',     lat: 44.07, lon: -103.07 },
+  { sid: 'MPX', name: 'Chanhassen, MN',     lat: 44.83, lon: -93.57 },
+  { sid: 'ABR', name: 'Aberdeen, SD',       lat: 45.45, lon: -98.43 },
+  { sid: 'MFR', name: 'Medford, OR',        lat: 42.38, lon: -122.87 },
+  { sid: 'GRB', name: 'Green Bay, WI',      lat: 44.48, lon: -88.13 },
+  { sid: 'DLH', name: 'Duluth, MN',         lat: 46.83, lon: -92.18 },
+  { sid: 'BIS', name: 'Bismarck, ND',       lat: 46.77, lon: -100.75 },
+  { sid: 'GTF', name: 'Great Falls, MT',    lat: 47.47, lon: -111.38 },
+  { sid: 'GYX', name: 'Gray, ME',           lat: 43.90, lon: -70.25 },
+  { sid: 'OAK', name: 'Oakland, CA',        lat: 37.73, lon: -122.22 },
+  { sid: 'VBG', name: 'Vandenberg, CA',     lat: 34.73, lon: -120.57 },
 ]
 
 function haversine(lat1, lon1, lat2, lon2) {
@@ -95,22 +96,27 @@ function nearestStation(lat, lon) {
   }, { station: UPPER_AIR_STATIONS[0], dist: Infinity }).station
 }
 
-// Returns { year, month, from } for the most recently available sounding (00Z or 12Z)
+// Returns time info for the most recently available sounding (00Z or 12Z).
+// SPC archives are available ~1-2 hrs after launch time (00Z ready ~02Z, 12Z ready ~14Z).
 function getSoundingTime() {
   const now = new Date()
   const utcH = now.getUTCHours()
   let d = new Date(now)
   let hour
-  if (utcH >= 15)      { hour = 12 }
-  else if (utcH >= 3)  { hour = 0 }
+  if (utcH >= 14)      { hour = 12 }
+  else if (utcH >= 2)  { hour = 0 }
   else {
     d.setUTCDate(d.getUTCDate() - 1)
     hour = 12
   }
   const year  = String(d.getUTCFullYear())
   const month = String(d.getUTCMonth() + 1).padStart(2, '0')
-  const from  = String(d.getUTCDate()).padStart(2, '0') + String(hour).padStart(2, '0')
-  return { year, month, from, hourLabel: `${String(hour).padStart(2, '0')}Z` }
+  const day   = String(d.getUTCDate()).padStart(2, '0')
+  const hh    = String(hour).padStart(2, '0')
+  return {
+    dt:         `${year}${month}${day}${hh}`,   // YYYYMMDDHH — SPC archive key
+    hourLabel:  `${hh}Z`,
+  }
 }
 
 // ── Color threshold helpers ───────────────────────────────────────────────────
@@ -264,12 +270,12 @@ function MapController({ lat, lon }) {
 
 function SoundingPanel({ lat, lon }) {
   const station = useMemo(() => nearestStation(lat, lon), [lat, lon])
-  const { year, month, from, hourLabel } = useMemo(getSoundingTime, [])
+  const { dt, hourLabel } = useMemo(getSoundingTime, [])
   const [imgError, setImgError] = useState(false)
   const [imgKey, setImgKey] = useState(0)
 
-  const imgSrc = `/api/sounding-img?year=${year}&month=${month}&from=${from}&stnm=${station.id}`
-  const wyomingUrl = `https://weather.uwyo.edu/cgi-bin/sounding.py?region=naconf&TYPE=TEXT%3ALIST&YEAR=${year}&MONTH=${month}&FROM=${from}&TO=${from}&STNM=${station.id}`
+  const imgSrc      = `/api/spc-sounding?dt=${dt}&sid=${station.sid}`
+  const spcPageUrl  = `https://www.spc.noaa.gov/exper/soundings/${dt}_OBS/`
 
   return (
     <PanelShell>
@@ -279,8 +285,8 @@ function SoundingPanel({ lat, lon }) {
           <div style={{ padding: '16px 0', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span style={{ fontSize: 12, color: '#8b92b3' }}>Image unavailable</span>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 10 }}>
-              <a href={wyomingUrl} target="_blank" rel="noreferrer"
-                style={{ fontSize: 12, color: '#3b82f6' }}>Open Wyoming ↗</a>
+              <a href={spcPageUrl} target="_blank" rel="noreferrer"
+                style={{ fontSize: 12, color: '#3b82f6' }}>Open SPC Soundings ↗</a>
               <button onClick={() => { setImgError(false); setImgKey(k => k + 1) }}
                 style={{ fontSize: 12, color: '#8b92b3', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
                 Retry
@@ -288,7 +294,7 @@ function SoundingPanel({ lat, lon }) {
             </div>
           </div>
         ) : (
-          <a href={wyomingUrl} target="_blank" rel="noreferrer" title="Open full sounding — Univ. of Wyoming">
+          <a href={spcPageUrl} target="_blank" rel="noreferrer" title="Open SPC sounding archive">
             <img
               key={imgKey}
               src={imgSrc}
@@ -299,7 +305,7 @@ function SoundingPanel({ lat, lon }) {
           </a>
         )}
         <div style={{ fontSize: 10, color: '#8b92b3', marginTop: 4, textAlign: 'right', opacity: 0.5 }}>
-          Univ. of Wyoming · click to open full sounding
+          SPC · {station.sid} · click to open archive
         </div>
       </div>
     </PanelShell>

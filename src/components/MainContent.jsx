@@ -5,7 +5,7 @@ import ForecastTab    from './tabs/ForecastTab'
 import ChaseOpsTab    from './tabs/ChaseOpsTab'
 import AboutTab       from './tabs/AboutTab'
 
-export default function MainContent({ activeTab, location }) {
+export default function MainContent({ activeTab, setActiveTab, location }) {
   return (
     <main
       style={{
@@ -17,7 +17,7 @@ export default function MainContent({ activeTab, location }) {
         minHeight: 0,
       }}
     >
-      {activeTab === 'overview'      && <OverviewTab location={location} />}
+      {activeTab === 'overview'      && <OverviewTab location={location} setActiveTab={setActiveTab} />}
       {activeTab === 'severe'        && <SevereTab location={location} />}
       {activeTab === 'observations'  && <ObservationsTab location={location} />}
       {activeTab === 'forecast'      && <ForecastTab location={location} />}

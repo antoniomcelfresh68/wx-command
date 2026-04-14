@@ -34,20 +34,21 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: () => '/climo/reports/today_filtered_hail.csv',
       },
-      // University of Wyoming Skew-T sounding image
-      '/api/sounding-img': {
-        target: 'https://weather.uwyo.edu',
+      // SPC sounding analysis GIFs — direct images, no HTML wrapper
+      '/api/spc-sounding': {
+        target: 'https://www.spc.noaa.gov',
         changeOrigin: true,
+        headers: { Referer: 'https://www.spc.noaa.gov/' },
         rewrite: (path) => {
-          const qs = path.split('?')[1] ?? ''
-          const p = new URLSearchParams(qs)
-          return `/cgi-bin/sounding.py?region=naconf&TYPE=GIF%3ASKEWT&YEAR=${p.get('year')}&MONTH=${p.get('month')}&FROM=${p.get('from')}&TO=${p.get('from')}&STNM=${p.get('stnm')}`
+          const p = new URLSearchParams(path.split('?')[1] ?? '')
+          return `/exper/soundings/${p.get('dt')}_OBS/${p.get('sid')}.gif`
         },
       },
-      // SPC mesoanalysis GIF images (CORS-blocked)
+      // SPC mesoanalysis GIF images — Referer required or server rejects
       '/api/spc-meso': {
         target: 'https://www.spc.noaa.gov',
         changeOrigin: true,
+        headers: { Referer: 'https://www.spc.noaa.gov/' },
         rewrite: (path) => {
           const product = new URLSearchParams(path.split('?')[1] ?? '').get('product') ?? 'sbcape'
           return `/exper/mesoanalysis/s/${product}/${product}_s19.gif`

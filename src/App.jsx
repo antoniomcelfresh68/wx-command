@@ -19,7 +19,7 @@ export default function App() {
         <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} location={location} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <TopBar location={location} setLocation={setLocation} />
-          <MainContent activeTab={activeTab} location={location} />
+          <MainContent activeTab={activeTab} setActiveTab={setActiveTab} location={location} />
         </div>
         <ChatBubble location={location} />
       </div>

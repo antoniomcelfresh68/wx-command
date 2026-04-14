@@ -65,3 +65,8 @@ body {
 .leaflet-container {
   background: #090b14 !important;
 }
+
+/* SPC probability polygons — prevent basemap color bleed-through */
+.spc-prob-polygon {
+  mix-blend-mode: normal !important;
+}

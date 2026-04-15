@@ -27,6 +27,31 @@ function tempColor(v) {
   return '#f44336'
 }
 
+function capeColor(v) {
+  if (v == null || v < 250) return '#4b5563'
+  if (v < 500)  return '#1d4ed8'
+  if (v < 1000) return '#16a34a'
+  if (v < 2000) return '#ca8a04'
+  if (v < 3000) return '#ea580c'
+  return '#dc2626'
+}
+
+function liColor(v) {
+  if (v == null || v >= 0) return '#4b5563'
+  if (v > -2) return '#ca8a04'
+  if (v > -6) return '#ea580c'
+  return '#dc2626'
+}
+
+function cinColor(v) {
+  if (v == null) return '#4b5563'
+  const m = Math.abs(v)
+  if (m < 25)  return '#16a34a'
+  if (m < 100) return '#ca8a04'
+  if (m < 200) return '#ea580c'
+  return '#dc2626'
+}
+
 // ── Legend config ─────────────────────────────────────────────────────────────
 const DEW_LEGEND = [
   { label: '< 30°F',  color: '#4a1a6b' },
@@ -44,6 +69,26 @@ const TEMP_LEGEND = [
   { label: '65–80°F', color: '#ffeb3b' },
   { label: '80–95°F', color: '#ff9800' },
   { label: '> 95°F',  color: '#f44336' },
+]
+const CAPE_LEGEND = [
+  { label: '< 250',    color: '#4b5563' },
+  { label: '250–500',  color: '#1d4ed8' },
+  { label: '500–1000', color: '#16a34a' },
+  { label: '1k–2k',   color: '#ca8a04' },
+  { label: '2k–3k',   color: '#ea580c' },
+  { label: '> 3000',  color: '#dc2626' },
+]
+const LI_LEGEND = [
+  { label: '≥ 0 (stable)',   color: '#4b5563' },
+  { label: '0 to −2',        color: '#ca8a04' },
+  { label: '−2 to −6',       color: '#ea580c' },
+  { label: '< −6 (extreme)', color: '#dc2626' },
+]
+const CIN_LEGEND = [
+  { label: '< 25 J/kg',   color: '#16a34a' },
+  { label: '25–100',      color: '#ca8a04' },
+  { label: '100–200',     color: '#ea580c' },
+  { label: '> 200 J/kg',  color: '#dc2626' },
 ]
 
 // ── Map controller ────────────────────────────────────────────────────────────
@@ -163,7 +208,8 @@ async function fetchStations() {
           const r = await fetch(
             `https://api.open-meteo.com/v1/forecast` +
             `?latitude=${lat}&longitude=${lon}` +
-            `&current=temperature_2m,dewpoint_2m` +
+            `&current=temperature_2m,dewpoint_2m,cape,convective_inhibition` +
+            `&hourly=lifted_index&forecast_hours=1` +
             `&temperature_unit=fahrenheit&timezone=auto`
           )
           if (!r.ok) return null
@@ -172,7 +218,10 @@ async function fetchStations() {
           const tmp = cur?.temperature_2m
           const dew = cur?.dewpoint_2m
           if (tmp == null || dew == null) return null
-          return { id, lat, lon, tmp, dew }
+          const cape = cur?.cape ?? null
+          const cin  = cur?.convective_inhibition ?? null
+          const li   = data?.hourly?.lifted_index?.[0] ?? null
+          return { id, lat, lon, tmp, dew, cape, cin, li }
         } catch {
           return null
         }
@@ -196,14 +245,36 @@ function useObsStations() {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
+const MODE_CONFIG = {
+  dew:  { colorFn: dewColor,  legend: DEW_LEGEND,  label: 'Dewpoint °F',  unit: '°F',    fmt: v => v != null ? `${Math.round(v)}°F` : '—' },
+  temp: { colorFn: tempColor, legend: TEMP_LEGEND, label: 'Temperature °F', unit: '°F',  fmt: v => v != null ? `${Math.round(v)}°F` : '—' },
+  cape: { colorFn: capeColor, legend: CAPE_LEGEND, label: 'CAPE J/kg',    unit: 'J/kg',  fmt: v => v != null ? Math.round(v) : '—' },
+  li:   { colorFn: liColor,   legend: LI_LEGEND,   label: 'Lifted Index', unit: '',      fmt: v => v != null ? v.toFixed(1) : '—' },
+  cin:  { colorFn: cinColor,  legend: CIN_LEGEND,  label: 'CIN J/kg',     unit: 'J/kg',  fmt: v => v != null ? Math.round(v) : '—' },
+}
+
+const STATION_VALUE = {
+  dew:  s => s.dew,
+  temp: s => s.tmp,
+  cape: s => s.cape,
+  li:   s => s.li,
+  cin:  s => s.cin,
+}
+
+const TOGGLE_MODES = [
+  { id: 'dew',  label: 'Dewpoint' },
+  { id: 'temp', label: 'Temp' },
+  { id: 'cape', label: 'CAPE' },
+  { id: 'li',   label: 'LI' },
+  { id: 'cin',  label: 'CIN' },
+]
+
 export default function ObservationsTab({ location }) {
   const [mode, setMode] = useState('dew')
 
   const { data: stations, isLoading, isError, error } = useObsStations()
 
-  const colorFn      = mode === 'dew' ? dewColor : tempColor
-  const activeLegend = mode === 'dew' ? DEW_LEGEND : TEMP_LEGEND
-  const modeLabel    = mode === 'dew' ? 'Dewpoint °F' : 'Temperature °F'
+  const { colorFn, legend: activeLegend, label: modeLabel } = MODE_CONFIG[mode]
   const visibleStations = stations ?? []
 
   return (
@@ -224,7 +295,7 @@ export default function ObservationsTab({ location }) {
             center={[s.lat, s.lon]}
             radius={12}
             pathOptions={{
-              fillColor: colorFn(mode === 'dew' ? s.dew : s.tmp),
+              fillColor: colorFn(STATION_VALUE[mode](s)),
               fillOpacity: 0.85,
               stroke: false,
             }}
@@ -232,8 +303,8 @@ export default function ObservationsTab({ location }) {
             <Tooltip direction="top" offset={[0, -10]} opacity={0.95}>
               <span style={{ fontFamily: 'monospace', fontSize: 12, lineHeight: 1.5 }}>
                 <strong>{s.id}</strong><br />
-                Dew: {Math.round(s.dew)}°F<br />
-                Tmp: {Math.round(s.tmp)}°F
+                Tmp: {Math.round(s.tmp)}°F · Dew: {Math.round(s.dew)}°F<br />
+                CAPE: {s.cape != null ? Math.round(s.cape) : '—'} · LI: {s.li != null ? s.li.toFixed(1) : '—'} · CIN: {s.cin != null ? Math.round(s.cin) : '—'}
               </span>
             </Tooltip>
           </CircleMarker>
@@ -260,7 +331,7 @@ export default function ObservationsTab({ location }) {
         display: 'flex', borderRadius: 5, overflow: 'hidden',
         border: '1px solid #1e2235',
       }}>
-        {[{ id: 'dew', label: 'Dewpoint' }, { id: 'temp', label: 'Temperature' }].map(({ id, label }, i) => {
+        {TOGGLE_MODES.map(({ id, label }, i) => {
           const active = mode === id
           return (
             <button

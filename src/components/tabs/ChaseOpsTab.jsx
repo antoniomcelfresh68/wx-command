@@ -13,13 +13,13 @@ delete L.Icon.Default.prototype._getIconUrl
 const REPORT_COLORS = { torn: '#ef4444', wind: '#f59e0b', hail: '#4ade80' }
 
 const MESO_PRODUCTS = [
-  { id: 'sbcape',  label: 'SB CAPE' },
-  { id: 'mlcape',  label: 'ML CAPE' },
-  { id: 'esrh',    label: 'Eff. SRH' },
-  { id: 'stp',     label: 'STP' },
-  { id: 'ehi',     label: 'EHI' },
-  { id: 'effbwd',  label: 'Eff. Shear' },
-  { id: 'sfcp',    label: 'Sfc Analysis' },
+  { id: 'sbcp',  label: 'SB CAPE' },
+  { id: 'mlcp',  label: 'ML CAPE' },
+  { id: 'esrh',  label: 'Eff. SRH' },
+  { id: 'stpc',  label: 'STP' },
+  { id: 'ehi',   label: 'EHI' },
+  { id: 'eshr',  label: 'Eff. Shear' },
+  { id: 'sfcp',  label: 'Sfc Analysis' },
 ]
 
 const SPC_COLORS = {
@@ -37,49 +37,49 @@ const WARN_STYLES = {
 // ── Upper-air rawinsonde stations (WMO ID, name, lat, lon) ───────────────────
 // sid = NWS station ID used in SPC sounding archive filenames
 const UPPER_AIR_STATIONS = [
-  { sid: 'EYW', name: 'Key West, FL',       lat: 24.55, lon: -81.75 },
-  { sid: 'TBW', name: 'Tampa, FL',          lat: 27.70, lon: -82.40 },
-  { sid: 'TLH', name: 'Tallahassee, FL',    lat: 30.38, lon: -84.37 },
-  { sid: 'FFC', name: 'Peachtree City, GA', lat: 33.35, lon: -84.57 },
-  { sid: 'CRP', name: 'Corpus Christi, TX', lat: 27.77, lon: -97.50 },
-  { sid: 'LCH', name: 'Lake Charles, LA',   lat: 30.12, lon: -93.22 },
-  { sid: 'LIX', name: 'New Orleans, LA',    lat: 29.98, lon: -90.05 },
-  { sid: 'JAN', name: 'Jackson, MS',        lat: 32.32, lon: -90.08 },
-  { sid: 'BMX', name: 'Birmingham, AL',     lat: 33.17, lon: -86.77 },
-  { sid: 'CHS', name: 'Charleston, SC',     lat: 32.90, lon: -80.03 },
-  { sid: 'LZK', name: 'Little Rock, AR',    lat: 34.83, lon: -92.25 },
-  { sid: 'OHX', name: 'Nashville, TN',      lat: 36.25, lon: -86.57 },
-  { sid: 'BRO', name: 'Brownsville, TX',    lat: 25.90, lon: -97.43 },
-  { sid: 'DRT', name: 'Del Rio, TX',        lat: 29.37, lon: -100.92 },
-  { sid: 'MAF', name: 'Midland, TX',        lat: 31.93, lon: -102.18 },
-  { sid: 'AMA', name: 'Amarillo, TX',       lat: 35.23, lon: -101.70 },
-  { sid: 'FWD', name: 'Fort Worth, TX',     lat: 32.83, lon: -97.30 },
-  { sid: 'OUN', name: 'Norman, OK',         lat: 35.18, lon: -97.44 },
-  { sid: 'DDC', name: 'Dodge City, KS',     lat: 37.77, lon: -99.97 },
-  { sid: 'DNR', name: 'Denver, CO',         lat: 39.75, lon: -104.87 },
-  { sid: 'SLC', name: 'Salt Lake City, UT', lat: 40.77, lon: -111.97 },
-  { sid: 'WAL', name: 'Wallops Island, VA', lat: 37.93, lon: -75.48 },
-  { sid: 'PIT', name: 'Pittsburgh, PA',     lat: 40.48, lon: -80.22 },
-  { sid: 'BUF', name: 'Buffalo, NY',        lat: 42.93, lon: -78.73 },
-  { sid: 'ALB', name: 'Albany, NY',         lat: 42.70, lon: -73.83 },
-  { sid: 'DTX', name: 'Detroit, MI',        lat: 42.23, lon: -83.74 },
-  { sid: 'ILX', name: 'Lincoln, IL',        lat: 40.15, lon: -89.35 },
-  { sid: 'OAX', name: 'Omaha, NE',          lat: 41.37, lon: -96.37 },
-  { sid: 'TOP', name: 'Topeka, KS',         lat: 39.07, lon: -95.62 },
-  { sid: 'RIW', name: 'Riverton, WY',       lat: 43.07, lon: -108.45 },
-  { sid: 'CAR', name: 'Caribou, ME',        lat: 46.87, lon: -68.02 },
-  { sid: 'OKX', name: 'Upton, NY',          lat: 40.87, lon: -72.87 },
-  { sid: 'UNR', name: 'Rapid City, SD',     lat: 44.07, lon: -103.07 },
-  { sid: 'MPX', name: 'Chanhassen, MN',     lat: 44.83, lon: -93.57 },
-  { sid: 'ABR', name: 'Aberdeen, SD',       lat: 45.45, lon: -98.43 },
-  { sid: 'MFR', name: 'Medford, OR',        lat: 42.38, lon: -122.87 },
-  { sid: 'GRB', name: 'Green Bay, WI',      lat: 44.48, lon: -88.13 },
-  { sid: 'DLH', name: 'Duluth, MN',         lat: 46.83, lon: -92.18 },
-  { sid: 'BIS', name: 'Bismarck, ND',       lat: 46.77, lon: -100.75 },
-  { sid: 'GTF', name: 'Great Falls, MT',    lat: 47.47, lon: -111.38 },
-  { sid: 'GYX', name: 'Gray, ME',           lat: 43.90, lon: -70.25 },
-  { sid: 'OAK', name: 'Oakland, CA',        lat: 37.73, lon: -122.22 },
-  { sid: 'VBG', name: 'Vandenberg, CA',     lat: 34.73, lon: -120.57 },
+  { sid: 'KEYW', name: 'Key West, FL',       lat: 24.55, lon: -81.75 },
+  { sid: 'KTBW', name: 'Tampa, FL',          lat: 27.70, lon: -82.40 },
+  { sid: 'KTLH', name: 'Tallahassee, FL',    lat: 30.38, lon: -84.37 },
+  { sid: 'KFFC', name: 'Peachtree City, GA', lat: 33.35, lon: -84.57 },
+  { sid: 'KCRP', name: 'Corpus Christi, TX', lat: 27.77, lon: -97.50 },
+  { sid: 'KLCH', name: 'Lake Charles, LA',   lat: 30.12, lon: -93.22 },
+  { sid: 'KLIX', name: 'New Orleans, LA',    lat: 29.98, lon: -90.05 },
+  { sid: 'KJAN', name: 'Jackson, MS',        lat: 32.32, lon: -90.08 },
+  { sid: 'KBMX', name: 'Birmingham, AL',     lat: 33.17, lon: -86.77 },
+  { sid: 'KCHS', name: 'Charleston, SC',     lat: 32.90, lon: -80.03 },
+  { sid: 'KLZK', name: 'Little Rock, AR',    lat: 34.83, lon: -92.25 },
+  { sid: 'KOHX', name: 'Nashville, TN',      lat: 36.25, lon: -86.57 },
+  { sid: 'KBRO', name: 'Brownsville, TX',    lat: 25.90, lon: -97.43 },
+  { sid: 'KDRT', name: 'Del Rio, TX',        lat: 29.37, lon: -100.92 },
+  { sid: 'KMAF', name: 'Midland, TX',        lat: 31.93, lon: -102.18 },
+  { sid: 'KAMA', name: 'Amarillo, TX',       lat: 35.23, lon: -101.70 },
+  { sid: 'KFWD', name: 'Fort Worth, TX',     lat: 32.83, lon: -97.30 },
+  { sid: 'KOUN', name: 'Norman, OK',         lat: 35.18, lon: -97.44 },
+  { sid: 'KDDC', name: 'Dodge City, KS',     lat: 37.77, lon: -99.97 },
+  { sid: 'KDNR', name: 'Denver, CO',         lat: 39.75, lon: -104.87 },
+  { sid: 'KSLC', name: 'Salt Lake City, UT', lat: 40.77, lon: -111.97 },
+  { sid: 'KWAL', name: 'Wallops Island, VA', lat: 37.93, lon: -75.48 },
+  { sid: 'KPIT', name: 'Pittsburgh, PA',     lat: 40.48, lon: -80.22 },
+  { sid: 'KBUF', name: 'Buffalo, NY',        lat: 42.93, lon: -78.73 },
+  { sid: 'KALB', name: 'Albany, NY',         lat: 42.70, lon: -73.83 },
+  { sid: 'KDTX', name: 'Detroit, MI',        lat: 42.23, lon: -83.74 },
+  { sid: 'KILX', name: 'Lincoln, IL',        lat: 40.15, lon: -89.35 },
+  { sid: 'KOAX', name: 'Omaha, NE',          lat: 41.37, lon: -96.37 },
+  { sid: 'KTOP', name: 'Topeka, KS',         lat: 39.07, lon: -95.62 },
+  { sid: 'KRIW', name: 'Riverton, WY',       lat: 43.07, lon: -108.45 },
+  { sid: 'KCAR', name: 'Caribou, ME',        lat: 46.87, lon: -68.02 },
+  { sid: 'KOKX', name: 'Upton, NY',          lat: 40.87, lon: -72.87 },
+  { sid: 'KUNR', name: 'Rapid City, SD',     lat: 44.07, lon: -103.07 },
+  { sid: 'KMPX', name: 'Chanhassen, MN',     lat: 44.83, lon: -93.57 },
+  { sid: 'KABR', name: 'Aberdeen, SD',       lat: 45.45, lon: -98.43 },
+  { sid: 'KMFR', name: 'Medford, OR',        lat: 42.38, lon: -122.87 },
+  { sid: 'KGRB', name: 'Green Bay, WI',      lat: 44.48, lon: -88.13 },
+  { sid: 'KDLH', name: 'Duluth, MN',         lat: 46.83, lon: -92.18 },
+  { sid: 'KBIS', name: 'Bismarck, ND',       lat: 46.77, lon: -100.75 },
+  { sid: 'KGTF', name: 'Great Falls, MT',    lat: 47.47, lon: -111.38 },
+  { sid: 'KGYX', name: 'Gray, ME',           lat: 43.90, lon: -70.25 },
+  { sid: 'KOAK', name: 'Oakland, CA',        lat: 37.73, lon: -122.22 },
+  { sid: 'KVBG', name: 'Vandenberg, CA',     lat: 34.73, lon: -120.57 },
 ]
 
 function haversine(lat1, lon1, lat2, lon2) {
@@ -313,7 +313,7 @@ function SoundingPanel({ lat, lon }) {
 }
 
 function MesoanalysisPanel() {
-  const [product, setProduct] = useState('sbcape')
+  const [product, setProduct] = useState('sbcp')
   const [imgError, setImgError] = useState(false)
 
   const imgSrc = `/api/spc-meso?product=${product}`
@@ -372,12 +372,12 @@ function ChaseParamsPanel({ lat, lon }) {
   const shear    = sfc925 != null && upper300 != null ? Math.abs(upper300 - sfc925) : null
 
   const params = [
-    { label: 'CAPE',        value: curr.cape != null ? `${Math.round(curr.cape)}` : '—',                          unit: 'J/kg', color: capeColor(curr.cape) },
-    { label: 'CIN',         value: curr.convective_inhibition != null ? `${Math.round(curr.convective_inhibition)}` : '—', unit: 'J/kg', color: cinColor(curr.convective_inhibition) },
-    { label: 'LI',          value: curr.lifted_index != null ? curr.lifted_index.toFixed(1) : '—',                unit: '',     color: liColor(curr.lifted_index) },
-    { label: '925–300 Shear', value: shear != null ? `${Math.round(shear)}` : '—',                               unit: 'kt',   color: shearColor(shear) },
-    { label: 'Sfc Wind',    value: curr.windspeed_10m != null ? `${Math.round(curr.windspeed_10m)} kt` : '—',     unit: '',     color: '#f0f2ff' },
-    { label: 'Wind Gust',   value: curr.wind_gusts_10m != null ? `${Math.round(curr.wind_gusts_10m)} kt` : '—',  unit: '',     color: '#f0f2ff' },
+    { label: 'CAPE',          value: curr.cape != null ? `${Math.round(curr.cape)}` : '—',                          unit: 'J/kg', color: capeColor(curr.cape) },
+    { label: 'CIN',           value: curr.convective_inhibition != null ? `${Math.round(curr.convective_inhibition)}` : '—', unit: 'J/kg', color: cinColor(curr.convective_inhibition) },
+    { label: 'LI',            value: curr.lifted_index != null ? curr.lifted_index.toFixed(1) : '—',                unit: '',     color: liColor(curr.lifted_index) },
+    { label: '925–300 Shear', value: shear != null ? `${Math.round(shear)}` : '—',                                  unit: 'kt',   color: shearColor(shear) },
+    { label: 'Sfc Wind',      value: curr.windspeed_10m != null ? `${Math.round(curr.windspeed_10m)} kt` : '—',     unit: '',     color: '#f0f2ff' },
+    { label: 'Wind Gust',     value: curr.wind_gusts_10m != null ? `${Math.round(curr.wind_gusts_10m)} kt` : '—',  unit: '',     color: '#f0f2ff' },
   ]
 
   return (

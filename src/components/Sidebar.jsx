@@ -182,7 +182,7 @@ export default function Sidebar({ activeTab, setActiveTab, location }) {
             Antonio's Severe<br />Weather Dashboard
           </div>
           <div className="text-xs" style={{ color: '#8b92b3', marginTop: 2 }}>
-            v5.2.1
+            v5.2.3
           </div>
         </div>
       </div>
